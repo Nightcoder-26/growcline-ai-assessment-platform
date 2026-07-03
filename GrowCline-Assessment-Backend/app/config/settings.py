@@ -14,9 +14,10 @@ class Config:
     """Application Configuration"""
 
     # Flask Configuration
-    SECRET_KEY = os.getenv("SECRET_KEY")
+    SECRET_KEY = os.getenv("SECRET_KEY", "growcline-secret-key")
 
     # Server Configuration
+    HOST = os.getenv("HOST", "0.0.0.0")
     PORT = int(os.getenv("PORT", 5000))
     DEBUG = os.getenv("DEBUG", "True").lower() == "true"
 
@@ -27,7 +28,7 @@ class Config:
     JWT_SECRET = os.getenv("JWT_SECRET")
     JWT_EXPIRATION = int(os.getenv("JWT_EXPIRATION", 86400))
 
-    # Groq Configuration
+    # Groq AI Configuration
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
     # Upload Configuration
