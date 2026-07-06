@@ -12,6 +12,11 @@ CORS(app)
 # Connect MongoDB
 Database.connect()
 
+# ── Team B: Video Recording Module ──────────────────────────────────────────
+from app.routes.recording_routes import recording_bp
+app.register_blueprint(recording_bp)
+# ────────────────────────────────────────────────────────────────────────────
+
 
 @app.route("/")
 def home():
