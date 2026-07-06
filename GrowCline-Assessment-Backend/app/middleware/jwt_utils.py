@@ -2,7 +2,7 @@ import os
 import datetime
 import jwt
 
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "growcline-super-secret-key")
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", os.environ.get("JWT_SECRET", "growcline-super-secret-key"))
 
 
 def generate_token(payload: dict, expires_in_hours: int = 24) -> str:

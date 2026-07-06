@@ -3,8 +3,8 @@ Recording Schemas
 Pydantic v2 response schemas for the Video Recording module.
 
 These schemas are used for documentation and response validation only.
-Multipart/form-data uploads are handled directly by Flask's request.files
-and request.form, consistent with Team A's controller pattern.
+Multipart/form-data uploads are handled directly by FastAPI Form and File,
+consistent with FastAPI request parameters.
 """
 
 from datetime import datetime

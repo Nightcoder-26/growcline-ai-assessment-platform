@@ -1,25 +1,17 @@
 """
 Recording Controller
-Handles HTTP request extraction, service delegation, and response formatting
-for all Video Recording endpoints.
-
-Follows Team A's controller pattern:
-- Static methods on a class
-- Uses flask.request to extract form fields, files, and query parameters
-- Calls service layer for all business logic
-- Returns (jsonify({...}), status_code) tuples
-- Catches ValueError for client errors (400/404) and RuntimeError for server errors (500)
+Handles service delegation and response formatting
+for all Video Recording endpoints using FastAPI JSONResponse.
 """
 
 import logging
 
-from flask import request, jsonify
+from fastapi.responses import JSONResponse
 
 try:
     from services import recording_service
 except ImportError:
     from app.services import recording_service
-
 
 logger = logging.getLogger(__name__)
 
@@ -28,40 +20,22 @@ class RecordingController:
     """Video Recording Controller"""
 
     @staticmethod
-    def upload_recording(current_user):
+    async def upload_recording(interview_id, duration, video_file, audio_file, current_user):
         """
         POST /api/recordings/upload
 
-        Accepts a multipart/form-data request with:
-            - interview_id (form field, required)
-            - duration     (form field, optional float — seconds)
-            - video_file   (file field, optional)
-            - audio_file   (file field, optional)
-
-        At least one of video_file or audio_file must be present.
+        Accepts multipart/form-data parameters, validates request fields,
+        delegates logic to recording_service, and returns a JSONResponse.
         """
         try:
-            interview_id = request.form.get("interview_id", "").strip()
-            duration_raw = request.form.get("duration", None)
-
             if not interview_id:
-                return jsonify({
-                    "success": False,
-                    "message": "interview_id is required."
-                }), 400
-
-            duration = None
-            if duration_raw is not None and duration_raw.strip() != "":
-                try:
-                    duration = float(duration_raw)
-                except ValueError:
-                    return jsonify({
+                return JSONResponse(
+                    status_code=400,
+                    content={
                         "success": False,
-                        "message": "duration must be a numeric value representing seconds."
-                    }), 400
-
-            video_file = request.files.get("video_file")
-            audio_file = request.files.get("audio_file")
+                        "message": "interview_id is required."
+                    }
+                )
 
             user_id = str(current_user["id"])
 
@@ -73,39 +47,50 @@ class RecordingController:
                 duration=duration,
             )
 
-            return jsonify({
-                "success": True,
-                "message": "Recording uploaded successfully.",
-                "data": recording,
-            }), 201
+            return JSONResponse(
+                status_code=201,
+                content={
+                    "success": True,
+                    "message": "Recording uploaded successfully.",
+                    "data": recording,
+                }
+            )
 
         except ValueError as error:
-            return jsonify({
-                "success": False,
-                "message": str(error),
-            }), 400
+            return JSONResponse(
+                status_code=400,
+                content={
+                    "success": False,
+                    "message": str(error),
+                }
+            )
 
         except RuntimeError as error:
             logger.error("Recording upload error: %s", error)
-            return jsonify({
-                "success": False,
-                "message": str(error),
-            }), 500
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": str(error),
+                }
+            )
 
         except Exception as error:
             logger.error("Unexpected error during recording upload: %s", error)
-            return jsonify({
-                "success": False,
-                "message": "An unexpected error occurred. Please try again.",
-            }), 500
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": "An unexpected error occurred. Please try again.",
+                }
+            )
 
     @staticmethod
-    def get_recording(recording_id, current_user):
+    async def get_recording(recording_id, current_user):
         """
         GET /api/recordings/<recording_id>
 
         Returns recording metadata for the authenticated owner.
-        Does not include presigned media URLs — use the /url endpoint for playback.
         """
         try:
             user_id = str(current_user["id"])
@@ -115,31 +100,39 @@ class RecordingController:
                 user_id=user_id,
             )
 
-            return jsonify({
-                "success": True,
-                "data": recording,
-            }), 200
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "data": recording,
+                }
+            )
 
         except ValueError as error:
-            return jsonify({
-                "success": False,
-                "message": str(error),
-            }), 404
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "success": False,
+                    "message": str(error),
+                }
+            )
 
         except Exception as error:
             logger.error("Unexpected error fetching recording %s: %s", recording_id, error)
-            return jsonify({
-                "success": False,
-                "message": "An unexpected error occurred. Please try again.",
-            }), 500
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": "An unexpected error occurred. Please try again.",
+                }
+            )
 
     @staticmethod
-    def get_interview_recordings(interview_id, current_user):
+    async def get_interview_recordings(interview_id, current_user):
         """
         GET /api/recordings/interview/<interview_id>
 
         Returns all recording documents for an interview, ordered by createdAt ascending.
-        Validates interview ownership before returning results.
         """
         try:
             user_id = str(current_user["id"])
@@ -149,34 +142,42 @@ class RecordingController:
                 user_id=user_id,
             )
 
-            return jsonify({
-                "success": True,
-                "data": result,
-            }), 200
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "data": result,
+                }
+            )
 
         except ValueError as error:
-            return jsonify({
-                "success": False,
-                "message": str(error),
-            }), 404
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "success": False,
+                    "message": str(error),
+                }
+            )
 
         except Exception as error:
             logger.error(
                 "Unexpected error listing recordings for interview %s: %s",
                 interview_id, error,
             )
-            return jsonify({
-                "success": False,
-                "message": "An unexpected error occurred. Please try again.",
-            }), 500
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": "An unexpected error occurred. Please try again.",
+                }
+            )
 
     @staticmethod
-    def get_recording_url(recording_id, current_user):
+    async def get_recording_url(recording_id, current_user):
         """
         GET /api/recordings/<recording_id>/url
 
-        Generates and returns temporary presigned S3 GET URLs for the recording's
-        media objects.  URLs expire after RECORDING_URL_EXPIRY_SECONDS seconds.
+        Generates and returns temporary presigned S3 GET URLs.
         """
         try:
             user_id = str(current_user["id"])
@@ -186,42 +187,52 @@ class RecordingController:
                 user_id=user_id,
             )
 
-            return jsonify({
-                "success": True,
-                "data": url_data,
-            }), 200
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "data": url_data,
+                }
+            )
 
         except ValueError as error:
-            return jsonify({
-                "success": False,
-                "message": str(error),
-            }), 404
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "success": False,
+                    "message": str(error),
+                }
+            )
 
         except RuntimeError as error:
             logger.error("Presigned URL generation error for %s: %s", recording_id, error)
-            return jsonify({
-                "success": False,
-                "message": str(error),
-            }), 500
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": str(error),
+                }
+            )
 
         except Exception as error:
             logger.error(
                 "Unexpected error generating URLs for recording %s: %s",
                 recording_id, error,
             )
-            return jsonify({
-                "success": False,
-                "message": "An unexpected error occurred. Please try again.",
-            }), 500
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": "An unexpected error occurred. Please try again.",
+                }
+            )
 
     @staticmethod
-    def delete_recording(recording_id, current_user):
+    async def delete_recording(recording_id, current_user):
         """
         DELETE /api/recordings/<recording_id>
 
         Deletes a recording's S3 objects and its MongoDB metadata.
-        S3 objects must be deleted successfully before the metadata is removed
-        to prevent orphaned object references from being lost.
         """
         try:
             user_id = str(current_user["id"])
@@ -231,30 +242,42 @@ class RecordingController:
                 user_id=user_id,
             )
 
-            return jsonify({
-                "success": True,
-                "message": result["message"],
-            }), 200
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "message": result["message"],
+                }
+            )
 
         except ValueError as error:
-            return jsonify({
-                "success": False,
-                "message": str(error),
-            }), 404
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "success": False,
+                    "message": str(error),
+                }
+            )
 
         except RuntimeError as error:
             logger.error("Recording deletion error for %s: %s", recording_id, error)
-            return jsonify({
-                "success": False,
-                "message": str(error),
-            }), 500
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": str(error),
+                }
+            )
 
         except Exception as error:
             logger.error(
                 "Unexpected error deleting recording %s: %s",
                 recording_id, error,
             )
-            return jsonify({
-                "success": False,
-                "message": "An unexpected error occurred. Please try again.",
-            }), 500
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": "An unexpected error occurred. Please try again.",
+                }
+            )

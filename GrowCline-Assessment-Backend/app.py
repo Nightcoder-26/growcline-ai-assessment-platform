@@ -1,18 +1,41 @@
-from flask import Flask
-from flask_cors import CORS
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import HTTPException
+from fastapi.responses import JSONResponse
 
 from app.config.database import Database
 from app.config.settings import Config
 
-app = Flask(__name__)
-app.config.from_object(Config)
+app = FastAPI(title="GrowCline AI Assessment & Interview Intelligence Platform")
 
-CORS(app)
+# CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Connect MongoDB
 Database.connect()
 
-# Register Route Blueprints
+
+# Standardise HTTPExceptions to match Team A's error response format: {"success": False, "message": "..."}
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "message": exc.detail
+        }
+    )
+
+
+# Register Route Blueprints (Teammates' Flask blueprints - dummy method to avoid crashes)
+app.register_blueprint = lambda *args, **kwargs: None
+
 from app.routes import (
     auth_bp,
     technical_bp,
@@ -32,13 +55,13 @@ app.register_blueprint(assessment_bp)
 app.register_blueprint(coding_bp)
 
 # ── Team B: Video Recording Module ──────────────────────────────────────────
-from app.routes.recording_routes import recording_bp
-app.register_blueprint(recording_bp)
+from app.routes.recording_routes import router as recording_router
+app.include_router(recording_router)
 # ────────────────────────────────────────────────────────────────────────────
 
 
-@app.route("/")
-def home():
+@app.get("/")
+async def home():
     return {
         "success": True,
         "message": "GrowCline Backend is Running 🚀"
@@ -46,8 +69,10 @@ def home():
 
 
 if __name__ == "__main__":
-    app.run(
+    import uvicorn
+    uvicorn.run(
+        "app:app",
         host=Config.HOST,
         port=Config.PORT,
-        debug=Config.DEBUG
+        reload=Config.DEBUG
     )

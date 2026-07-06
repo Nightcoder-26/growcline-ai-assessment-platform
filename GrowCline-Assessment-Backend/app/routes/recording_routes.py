@@ -1,152 +1,134 @@
 """
 Recording Routes
-Flask Blueprint for the Video Recording module.
-
-All endpoints require JWT authentication.
-The authenticated user context is passed directly to the controller
-so that ownership validation can be performed in the service layer.
-
-Route ordering note:
-    /api/recordings/upload         — registered before /<recording_id>
-    /api/recordings/interview/<id> — registered before /<recording_id>
-    /api/recordings/<id>/url       — registered with explicit suffix
-    /api/recordings/<id>           — generic single-resource routes
+FastAPI APIRouter for the Video Recording module.
 """
 
 import logging
-from functools import wraps
+from typing import Optional
 
-import jwt
-from flask import Blueprint, request, jsonify
+from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, Header
+from fastapi.responses import JSONResponse
 
 try:
-    from config.settings import Config
     from controllers.recording_controller import RecordingController
+    from middleware.jwt_utils import decode_token
 except ImportError:
-    from app.config.settings import Config
     from app.controllers.recording_controller import RecordingController
-
+    from app.middleware.jwt_utils import decode_token
 
 logger = logging.getLogger(__name__)
 
-recording_bp = Blueprint("recordings", __name__, url_prefix="/api/recordings")
+router = APIRouter(prefix="/api/recordings", tags=["Recordings"])
 
 
 # ---------------------------------------------------------------------------
-# JWT authentication decorator
+# JWT authentication dependency
 # ---------------------------------------------------------------------------
 
-def require_auth(f):
+async def get_current_user(authorization: str = Header(...)):
     """
-    Decorator that validates a Bearer JWT token from the Authorization header.
-
-    On success, injects `current_user` as the first positional argument to
-    the decorated view function.  The current_user dict contains:
-        {"id": str, "email": str, "role": str}
-
-    On failure, returns the project's standard error response with 401.
+    Dependency that validates a Bearer JWT token from the Authorization header.
+    Returns the authenticated user dict.
     """
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth_header = request.headers.get("Authorization", "")
+    if not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication token is required."
+        )
 
-        if not auth_header.startswith("Bearer "):
-            return jsonify({
-                "success": False,
-                "message": "Authentication token is required.",
-            }), 401
+    token = authorization.split(" ", 1)[1].strip()
+    payload = decode_token(token)
+    
+    if not payload or "id" not in payload:
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid authentication token."
+        )
 
-        token = auth_header.split(" ", 1)[1].strip()
-
-        try:
-            payload = jwt.decode(
-                token,
-                Config.JWT_SECRET,
-                algorithms=["HS256"],
-            )
-        except jwt.ExpiredSignatureError:
-            return jsonify({
-                "success": False,
-                "message": "Authentication token has expired.",
-            }), 401
-        except jwt.InvalidTokenError:
-            return jsonify({
-                "success": False,
-                "message": "Invalid authentication token.",
-            }), 401
-
-        current_user = {
-            "id": payload.get("id"),
-            "email": payload.get("email"),
-            "role": payload.get("role"),
-        }
-
-        return f(current_user, *args, **kwargs)
-
-    return decorated
+    return {
+        "id": payload.get("id"),
+        "email": payload.get("email"),
+        "role": payload.get("role"),
+    }
 
 
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
 
-@recording_bp.route("/upload", methods=["POST"])
-@require_auth
-def upload_recording(current_user):
+@router.post("/upload")
+async def upload_recording(
+    interview_id: str = Form(...),
+    duration: Optional[float] = Form(None),
+    video_file: Optional[UploadFile] = File(None),
+    audio_file: Optional[UploadFile] = File(None),
+    current_user: dict = Depends(get_current_user),
+):
     """
     POST /api/recordings/upload
 
     Upload a completed recording file (video and/or audio) for an interview.
     Accepts multipart/form-data with fields: interview_id, duration, video_file, audio_file.
     """
-    return RecordingController.upload_recording(current_user)
+    return await RecordingController.upload_recording(
+        interview_id=interview_id,
+        duration=duration,
+        video_file=video_file,
+        audio_file=audio_file,
+        current_user=current_user,
+    )
 
 
-@recording_bp.route("/interview/<interview_id>", methods=["GET"])
-@require_auth
-def get_interview_recordings(current_user, interview_id):
+@router.get("/interview/{interview_id}")
+async def get_interview_recordings(
+    interview_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
-    GET /api/recordings/interview/<interview_id>
+    GET /api/recordings/interview/{interview_id}
 
     List all recordings for the specified interview.
     Validates interview ownership before returning results.
-
-    Registered before /<recording_id> to prevent Flask capturing
-    the literal string "interview" as a recording_id parameter.
     """
-    return RecordingController.get_interview_recordings(interview_id, current_user)
+    return await RecordingController.get_interview_recordings(interview_id, current_user)
 
 
-@recording_bp.route("/<recording_id>/url", methods=["GET"])
-@require_auth
-def get_recording_url(current_user, recording_id):
+@router.get("/{recording_id}/url")
+async def get_recording_url(
+    recording_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
-    GET /api/recordings/<recording_id>/url
+    GET /api/recordings/{recording_id}/url
 
     Generate temporary presigned S3 GET URLs for the recording's media objects.
     """
-    return RecordingController.get_recording_url(recording_id, current_user)
+    return await RecordingController.get_recording_url(recording_id, current_user)
 
 
-@recording_bp.route("/<recording_id>", methods=["GET"])
-@require_auth
-def get_recording(current_user, recording_id):
+@router.get("/{recording_id}")
+async def get_recording(
+    recording_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
-    GET /api/recordings/<recording_id>
+    GET /api/recordings/{recording_id}
 
     Retrieve metadata for a single recording.
     Does not return presigned media URLs — use /url for playback access.
     """
-    return RecordingController.get_recording(recording_id, current_user)
+    return await RecordingController.get_recording(recording_id, current_user)
 
 
-@recording_bp.route("/<recording_id>", methods=["DELETE"])
-@require_auth
-def delete_recording(current_user, recording_id):
+@router.delete("/{recording_id}")
+async def delete_recording(
+    recording_id: str,
+    current_user: dict = Depends(get_current_user),
+):
     """
-    DELETE /api/recordings/<recording_id>
+    DELETE /api/recordings/{recording_id}
 
     Delete a recording's S3 objects and its MongoDB metadata.
     Only the recording owner may perform this operation.
     """
-    return RecordingController.delete_recording(recording_id, current_user)
+    return await RecordingController.delete_recording(recording_id, current_user)
