@@ -12,6 +12,25 @@ CORS(app)
 # Connect MongoDB
 Database.connect()
 
+# Register Route Blueprints
+from app.routes import (
+    auth_bp,
+    technical_bp,
+    result_bp,
+    analytics_bp,
+    aptitude_bp,
+    assessment_bp,
+    coding_bp,
+)
+
+app.register_blueprint(auth_bp)
+app.register_blueprint(technical_bp)
+app.register_blueprint(result_bp)
+app.register_blueprint(analytics_bp)
+app.register_blueprint(aptitude_bp)
+app.register_blueprint(assessment_bp)
+app.register_blueprint(coding_bp)
+
 # ── Team B: Video Recording Module ──────────────────────────────────────────
 from app.routes.recording_routes import recording_bp
 app.register_blueprint(recording_bp)

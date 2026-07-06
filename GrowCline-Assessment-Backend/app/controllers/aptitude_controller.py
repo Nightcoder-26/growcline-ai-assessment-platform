@@ -5,7 +5,10 @@ Handles CRUD operations for aptitude questions.
 
 from flask import request, jsonify
 from bson import ObjectId
-from config.database import Database
+try:
+    from config.database import Database
+except ImportError:
+    from app.config.database import Database
 
 
 class AptitudeController:
@@ -223,3 +226,11 @@ class AptitudeController:
                 "success": False,
                 "message": str(error)
             }), 500
+
+    @staticmethod
+    def get_all_questions():
+        return AptitudeController.get_questions()
+
+    @staticmethod
+    def get_question_by_id(question_id):
+        return AptitudeController.get_question(question_id)

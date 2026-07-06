@@ -7,7 +7,10 @@ from datetime import datetime
 from bson import ObjectId
 from flask import request, jsonify
 
-from config.database import Database
+try:
+    from config.database import Database
+except ImportError:
+    from app.config.database import Database
 
 
 class AssessmentController:
@@ -95,6 +98,35 @@ class AssessmentController:
                 "success": False,
                 "message": str(error)
             }), 500
+
+    @staticmethod
+    def update_assessment(assessment_id):
+        try:
+            db = Database.get_db()
+            data = request.get_json()
+            if not data:
+                return jsonify({"success": False, "message": "No data provided"}), 400
+
+            update_fields = {}
+            for field in ["title", "description", "job_role", "duration", "total_questions", "status"]:
+                if field in data:
+                    update_fields[field] = data[field]
+            if "jobRole" in data:
+                update_fields["job_role"] = data["jobRole"]
+            if "totalQuestions" in data:
+                update_fields["total_questions"] = data["totalQuestions"]
+
+            if not update_fields:
+                return jsonify({"success": False, "message": "No valid fields to update"}), 400
+
+            update_fields["updated_at"] = datetime.utcnow()
+            result = db.assessments.update_one({"_id": ObjectId(assessment_id)}, {"$set": update_fields})
+            if result.matched_count == 0:
+                return jsonify({"success": False, "message": "Assessment not found."}), 404
+
+            return jsonify({"success": True, "message": "Assessment updated successfully."}), 200
+        except Exception as error:
+            return jsonify({"success": False, "message": str(error)}), 500
 
     @staticmethod
     def start_assessment(assessment_id):
@@ -215,3 +247,11 @@ class AssessmentController:
                 "success": False,
                 "message": str(error)
             }), 500
+
+    @staticmethod
+    def get_all_assessments():
+        return AssessmentController.get_assessments()
+
+    @staticmethod
+    def get_assessment_by_id(assessment_id):
+        return AssessmentController.get_assessment(assessment_id)

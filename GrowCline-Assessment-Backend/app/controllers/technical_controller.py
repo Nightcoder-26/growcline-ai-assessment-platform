@@ -324,3 +324,11 @@ class TechnicalController:
                 "success": False,
                 "message": str(error)
             }), 500
+
+    @staticmethod
+    def get_all_questions():
+        return TechnicalController.get_questions()
+
+    @staticmethod
+    def get_question_by_id(question_id):
+        return TechnicalController.get_question(question_id)

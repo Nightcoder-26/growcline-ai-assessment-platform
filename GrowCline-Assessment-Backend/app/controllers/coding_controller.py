@@ -383,3 +383,27 @@ class CodingController:
                 "success": False,
                 "message": str(error)
             }), 500
+
+    @staticmethod
+    def submit_code():
+        return CodingController.submit_assessment()
+
+    @staticmethod
+    def get_submission_result(submission_id):
+        try:
+            db = Database.get_db()
+            result = db.assessment_results.find_one({"_id": ObjectId(submission_id)})
+            if not result:
+                return jsonify({"success": False, "message": "Submission result not found."}), 404
+            result["_id"] = str(result["_id"])
+            return jsonify({"success": True, "data": result}), 200
+        except Exception as error:
+            return jsonify({"success": False, "message": str(error)}), 500
+
+    @staticmethod
+    def get_all_questions():
+        return CodingController.get_questions()
+
+    @staticmethod
+    def get_question_by_id(question_id):
+        return CodingController.get_question(question_id)
