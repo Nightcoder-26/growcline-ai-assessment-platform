@@ -395,3 +395,23 @@ class ResultController:
                 "success": False,
                 "message": str(error)
             }), 500
+
+    @staticmethod
+    def calculate_result():
+        return ResultController.save_result()
+
+    @staticmethod
+    def get_all_results():
+        return ResultController.get_results()
+
+    @staticmethod
+    def get_result_by_id(result_id):
+        return ResultController.get_result(result_id)
+
+    @staticmethod
+    def get_candidate_results(user_id):
+        return ResultController.get_user_results(user_id)
+
+    @staticmethod
+    def get_assessment_result(assessment_id):
+        return ResultController.get_assessment_results(assessment_id)

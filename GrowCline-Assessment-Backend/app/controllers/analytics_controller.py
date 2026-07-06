@@ -1,6 +1,9 @@
 
 from flask import jsonify
-from config.database import Database
+try:
+    from config.database import Database
+except ImportError:
+    from app.config.database import Database
 
 
 class AnalyticsController:
@@ -190,3 +193,33 @@ class AnalyticsController:
                 ),
                 500,
             )
+
+    @staticmethod
+    def get_candidate_analytics(user_id):
+        try:
+            db = Database.get_db()
+            results = list(db.assessment_results.find({"user_id": user_id}))
+            for r in results:
+                r["_id"] = str(r["_id"])
+            return jsonify({"success": True, "count": len(results), "data": results}), 200
+        except Exception as error:
+            return jsonify({"success": False, "message": str(error)}), 500
+
+    @staticmethod
+    def get_assessment_analytics(assessment_id):
+        try:
+            db = Database.get_db()
+            results = list(db.assessment_results.find({"assessment_id": assessment_id}))
+            for r in results:
+                r["_id"] = str(r["_id"])
+            return jsonify({"success": True, "count": len(results), "data": results}), 200
+        except Exception as error:
+            return jsonify({"success": False, "message": str(error)}), 500
+
+    @staticmethod
+    def get_performance_trends():
+        return AnalyticsController.get_overall_statistics()
+
+    @staticmethod
+    def get_skill_analysis(user_id):
+        return AnalyticsController.get_average_scores()
