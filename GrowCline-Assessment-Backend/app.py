@@ -59,6 +59,11 @@ from app.routes.recording_routes import router as recording_router
 app.include_router(recording_router)
 # ────────────────────────────────────────────────────────────────────────────
 
+# ── Team B: Live Proctoring Module ──────────────────────────────────────────
+from app.routes.proctoring_routes import router as proctoring_router
+app.include_router(proctoring_router)
+# ────────────────────────────────────────────────────────────────────────────
+
 
 @app.get("/")
 async def home():
@@ -70,9 +75,9 @@ async def home():
 
 if __name__ == "__main__":
     import uvicorn
+    # Pass the 'app' object directly to avoid namespace collision with the 'app/' directory
     uvicorn.run(
-        "app:app",
+        app,
         host=Config.HOST,
-        port=Config.PORT,
-        reload=Config.DEBUG
+        port=Config.PORT
     )
