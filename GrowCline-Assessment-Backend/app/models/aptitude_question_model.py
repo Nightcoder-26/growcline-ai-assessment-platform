@@ -1,85 +1,67 @@
-from datetime import datetime
+"""
+Aptitude Question Model
+Defines the document structure and helper methods for aptitude_questions collection.
+"""
+
+from datetime import datetime, timezone
 from bson import ObjectId
 
 
 class AptitudeQuestion:
+    """Aptitude Question Model"""
+
     @staticmethod
     def create_question(
-        category,
         question,
+        category,
+        difficulty,
         options,
         correct_answer,
-        difficulty,
-        marks=1,
         explanation="",
+        marks=1,
         question_type="MCQ",
         tags=None,
         created_by=None,
     ):
+        now = datetime.now(timezone.utc)
         return {
             "_id": ObjectId(),
-
-            "category": category,
-
             "question": question,
-
-            "questionType": question_type,
-
-            "options": options,
-
-            "correctAnswer": correct_answer,
-
+            "category": category,
             "difficulty": difficulty,
-
-            "marks": marks,
-
-            "explanation": explanation,
-
+            "options": options,
+            "correctAnswer": correct_answer,
+            "correct_answer": correct_answer,
+            "explanation": explanation or "",
+            "marks": int(marks) if marks is not None else 1,
+            "questionType": question_type or "MCQ",
             "tags": tags if tags else [],
-
             "isActive": True,
-
-            "createdBy": (
-                ObjectId(created_by)
-                if created_by
-                else None
-            ),
-
-            "createdAt": datetime.utcnow(),
-            "updatedAt": datetime.utcnow(),
+            "createdBy": ObjectId(created_by) if created_by else None,
+            "createdAt": now,
+            "updatedAt": now,
         }
 
     @staticmethod
     def response(question):
+        if not question:
+            return None
+        created_at = question.get("createdAt")
+        if isinstance(created_at, datetime):
+            created_at = created_at.isoformat()
+
         return {
+            "_id": str(question["_id"]),
             "id": str(question["_id"]),
-
-            "category": question.get("category"),
-
-            "question": question.get("question"),
-
-            "questionType": question.get("questionType", "MCQ"),
-
+            "question": question.get("question", ""),
+            "category": question.get("category", ""),
+            "difficulty": question.get("difficulty", "Easy"),
             "options": question.get("options", []),
-
-            "correctAnswer": question.get("correctAnswer"),
-
-            "difficulty": question.get("difficulty"),
-
-            "marks": question.get("marks", 1),
-
+            "correctAnswer": question.get("correctAnswer", question.get("correct_answer", "")),
             "explanation": question.get("explanation", ""),
-
+            "marks": question.get("marks", 1),
+            "questionType": question.get("questionType", "MCQ"),
             "tags": question.get("tags", []),
-
             "isActive": question.get("isActive", True),
-
-            "createdBy": (
-                str(question["createdBy"])
-                if question.get("createdBy")
-                else None
-            ),
-
-            "createdAt": question.get("createdAt"),
-            "updatedAt": question.get("updatedAt"),
+            "createdAt": created_at,
         }

@@ -1,3 +1,9 @@
+"""
+Assessment Routes Module
+Registers endpoints for Assessment creation, listing, retrieval, starting, and submitting.
+Supports both /api/assessment (singular) and /api/assessments (plural).
+"""
+
 from flask import Blueprint
 
 try:
@@ -5,25 +11,22 @@ try:
 except ImportError:
     from app.controllers.assessment_controller import AssessmentController
 
-assessment_bp = Blueprint("assessment", __name__, url_prefix="/api/assessments")
+assessment_bp = Blueprint("assessment", __name__, url_prefix="/api/assessment")
+assessments_plural_bp = Blueprint("assessments_plural", __name__, url_prefix="/api/assessments")
 
-# Create Assessment
-assessment_bp.route("/", methods=["POST"])(AssessmentController.create_assessment)
+for bp in [assessment_bp, assessments_plural_bp]:
+    prefix = bp.name
+    # Create Assessment & Get All Assessments
+    bp.route("", methods=["POST"], endpoint=f"create_assessment_root_{prefix}")(AssessmentController.create_assessment)
+    bp.route("/", methods=["POST"], endpoint=f"create_assessment_root_slash_{prefix}")(AssessmentController.create_assessment)
+    bp.route("", methods=["GET"], endpoint=f"get_all_assessments_root_{prefix}")(AssessmentController.get_all_assessments)
+    bp.route("/", methods=["GET"], endpoint=f"get_all_assessments_root_slash_{prefix}")(AssessmentController.get_all_assessments)
 
-# Get All Assessments
-assessment_bp.route("/", methods=["GET"])(AssessmentController.get_all_assessments)
+    # Single Assessment by ID
+    bp.route("/<string:assessment_id>", methods=["GET"], endpoint=f"get_assessment_by_id_{prefix}")(AssessmentController.get_assessment_by_id)
+    bp.route("/<string:assessment_id>", methods=["PUT"], endpoint=f"update_assessment_{prefix}")(AssessmentController.update_assessment)
+    bp.route("/<string:assessment_id>", methods=["DELETE"], endpoint=f"delete_assessment_{prefix}")(AssessmentController.delete_assessment)
 
-# Get Assessment By ID
-assessment_bp.route("/<string:assessment_id>", methods=["GET"])(AssessmentController.get_assessment_by_id)
-
-# Update Assessment
-assessment_bp.route("/<string:assessment_id>", methods=["PUT"])(AssessmentController.update_assessment)
-
-# Delete Assessment
-assessment_bp.route("/<string:assessment_id>", methods=["DELETE"])(AssessmentController.delete_assessment)
-
-# Start Assessment
-assessment_bp.route("/<string:assessment_id>/start", methods=["POST"])(AssessmentController.start_assessment)
-
-# Submit Assessment
-assessment_bp.route("/<string:assessment_id>/submit", methods=["POST"])(AssessmentController.submit_assessment)
+    # Start and Submit Assessment
+    bp.route("/<string:assessment_id>/start", methods=["POST"], endpoint=f"start_assessment_{prefix}")(AssessmentController.start_assessment)
+    bp.route("/<string:assessment_id>/submit", methods=["POST"], endpoint=f"submit_assessment_{prefix}")(AssessmentController.submit_assessment)

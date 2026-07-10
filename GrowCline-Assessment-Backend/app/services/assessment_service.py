@@ -155,9 +155,12 @@ class AssessmentService:
             if not user_id or not ObjectId.is_valid(user_id):
                 return {"success": False, "status_code": 400, "message": "Valid 'userId' is required.", "error": "INVALID_USER_ID"}
 
-            aptitude_ids = [str(qid) for qid in payload.get("aptitudeQuestions", []) if ObjectId.is_valid(qid)]
-            technical_ids = [str(qid) for qid in payload.get("technicalQuestions", []) if ObjectId.is_valid(qid)]
-            coding_ids = [str(qid) for qid in payload.get("codingQuestions", []) if ObjectId.is_valid(qid)]
+            apt_raw = payload.get("aptitudeQuestions", payload.get("aptitudeQuestionIds", []))
+            tech_raw = payload.get("technicalQuestions", payload.get("technicalQuestionIds", []))
+            code_raw = payload.get("codingQuestions", payload.get("codingQuestionIds", []))
+            aptitude_ids = [str(qid) for qid in apt_raw if ObjectId.is_valid(qid)]
+            technical_ids = [str(qid) for qid in tech_raw if ObjectId.is_valid(qid)]
+            coding_ids = [str(qid) for qid in code_raw if ObjectId.is_valid(qid)]
 
             duration = int(payload.get("duration", 60))
             passing_percentage = float(payload.get("passingPercentage", 40.0))

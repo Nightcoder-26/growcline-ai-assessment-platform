@@ -3,7 +3,7 @@ from .technical_routes import technical_bp
 from .result_routes import result_bp
 from .analytics_routes import analytics_bp
 from .aptitude_routes import aptitude_bp
-from .assessment_routes import assessment_bp
+from .assessment_routes import assessment_bp, assessments_plural_bp
 from .coding_routes import coding_bp
 
 __all__ = [
@@ -13,5 +13,6 @@ __all__ = [
     "analytics_bp",
     "aptitude_bp",
     "assessment_bp",
+    "assessments_plural_bp",
     "coding_bp",
 ]

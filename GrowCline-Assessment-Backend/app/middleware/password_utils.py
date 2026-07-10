@@ -1,11 +1,8 @@
-from werkzeug.security import generate_password_hash, check_password_hash
+"""
+Password Utilities Middleware Wrapper
+Re-exports password utilities from app.utils.password_utils.
+"""
 
+from app.utils.password_utils import hash_password, verify_password
 
-def hash_password(password: str) -> str:
-    return generate_password_hash(password)
-
-
-def verify_password(password: str, hashed_password: str) -> bool:
-    if not hashed_password or not password:
-        return False
-    return check_password_hash(hashed_password, password)
+__all__ = ["hash_password", "verify_password"]

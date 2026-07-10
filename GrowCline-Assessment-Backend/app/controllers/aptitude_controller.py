@@ -1,14 +1,18 @@
 """
-Aptitude Controller
-Handles CRUD operations for aptitude questions.
+Aptitude Controller Module
+Handles full CRUD, random test generation, and evaluation for aptitude questions.
 """
 
+from datetime import datetime, timezone
 from flask import request, jsonify
 from bson import ObjectId
+
 try:
     from config.database import Database
+    from models.aptitude_question_model import AptitudeQuestion
 except ImportError:
     from app.config.database import Database
+    from app.models.aptitude_question_model import AptitudeQuestion
 
 
 class AptitudeController:
@@ -16,27 +20,55 @@ class AptitudeController:
 
     @staticmethod
     def create_question():
+        """
+        POST /api/aptitude (or /api/aptitude/questions)
+        Creates a new aptitude question document.
+        """
         try:
+            data = request.get_json(silent=True) or {}
+
+            question_text = data.get("question")
+            category = data.get("category")
+            difficulty = data.get("difficulty")
+            options = data.get("options")
+            correct_answer = data.get("correctAnswer", data.get("correct_answer"))
+            explanation = data.get("explanation", "")
+            marks = data.get("marks", 1)
+            question_type = data.get("questionType", "MCQ")
+            tags = data.get("tags", [])
+
+            if not question_text or not category or not difficulty or not options or correct_answer is None:
+                return jsonify({
+                    "success": False,
+                    "message": "Required fields missing: question, category, difficulty, options, and correctAnswer are required."
+                }), 400
+
+            if not isinstance(options, list) or len(options) < 2:
+                return jsonify({
+                    "success": False,
+                    "message": "Options must be a list containing at least 2 items."
+                }), 400
+
+            question_doc = AptitudeQuestion.create_question(
+                question=question_text,
+                category=category,
+                difficulty=difficulty,
+                options=options,
+                correct_answer=correct_answer,
+                explanation=explanation,
+                marks=marks,
+                question_type=question_type,
+                tags=tags
+            )
+
             db = Database.get_db()
-
-            data = request.get_json()
-
-            question = {
-                "question": data.get("question"),
-                "options": data.get("options"),
-                "correct_answer": data.get("correct_answer"),
-                "difficulty": data.get("difficulty", "Easy"),
-                "category": data.get("category"),
-                "marks": data.get("marks", 1),
-                "is_active": True,
-            }
-
-            result = db.aptitude_questions.insert_one(question)
+            result = db.aptitude_questions.insert_one(question_doc)
 
             return jsonify({
                 "success": True,
                 "message": "Question created successfully.",
-                "question_id": str(result.inserted_id)
+                "question_id": str(result.inserted_id),
+                "data": AptitudeQuestion.response(question_doc)
             }), 201
 
         except Exception as error:
@@ -46,16 +78,16 @@ class AptitudeController:
             }), 500
 
     @staticmethod
-    def get_questions():
+    def get_all_questions():
+        """
+        GET /api/aptitude (or /api/aptitude/questions)
+        Retrieves all aptitude questions.
+        """
         try:
             db = Database.get_db()
+            questions_cursor = db.aptitude_questions.find()
 
-            questions = list(
-                db.aptitude_questions.find()
-            )
-
-            for question in questions:
-                question["_id"] = str(question["_id"])
+            questions = [AptitudeQuestion.response(q) for q in questions_cursor if q]
 
             return jsonify({
                 "success": True,
@@ -70,13 +102,20 @@ class AptitudeController:
             }), 500
 
     @staticmethod
-    def get_question(question_id):
+    def get_question_by_id(question_id):
+        """
+        GET /api/aptitude/<question_id>
+        Retrieves a specific aptitude question by its ID.
+        """
         try:
-            db = Database.get_db()
+            if not ObjectId.is_valid(question_id):
+                return jsonify({
+                    "success": False,
+                    "message": "Invalid question ID format."
+                }), 400
 
-            question = db.aptitude_questions.find_one({
-                "_id": ObjectId(question_id)
-            })
+            db = Database.get_db()
+            question = db.aptitude_questions.find_one({"_id": ObjectId(question_id)})
 
             if not question:
                 return jsonify({
@@ -84,11 +123,9 @@ class AptitudeController:
                     "message": "Question not found."
                 }), 404
 
-            question["_id"] = str(question["_id"])
-
             return jsonify({
                 "success": True,
-                "data": question
+                "data": AptitudeQuestion.response(question)
             }), 200
 
         except Exception as error:
@@ -99,18 +136,50 @@ class AptitudeController:
 
     @staticmethod
     def update_question(question_id):
+        """
+        PUT /api/aptitude/<question_id>
+        Updates an existing aptitude question.
+        """
         try:
+            if not ObjectId.is_valid(question_id):
+                return jsonify({
+                    "success": False,
+                    "message": "Invalid question ID format."
+                }), 400
+
+            data = request.get_json(silent=True) or {}
+            if not data:
+                return jsonify({
+                    "success": False,
+                    "message": "No update payload provided."
+                }), 400
+
+            update_fields = {}
+            if "question" in data:
+                update_fields["question"] = data["question"]
+            if "category" in data:
+                update_fields["category"] = data["category"]
+            if "difficulty" in data:
+                update_fields["difficulty"] = data["difficulty"]
+            if "options" in data:
+                update_fields["options"] = data["options"]
+            if "correctAnswer" in data or "correct_answer" in data:
+                correct = data.get("correctAnswer", data.get("correct_answer"))
+                update_fields["correctAnswer"] = correct
+                update_fields["correct_answer"] = correct
+            if "explanation" in data:
+                update_fields["explanation"] = data["explanation"]
+            if "marks" in data:
+                update_fields["marks"] = int(data["marks"])
+            if "isActive" in data:
+                update_fields["isActive"] = bool(data["isActive"])
+
+            update_fields["updatedAt"] = datetime.now(timezone.utc)
+
             db = Database.get_db()
-
-            data = request.get_json()
-
             result = db.aptitude_questions.update_one(
-                {
-                    "_id": ObjectId(question_id)
-                },
-                {
-                    "$set": data
-                }
+                {"_id": ObjectId(question_id)},
+                {"$set": update_fields}
             )
 
             if result.matched_count == 0:
@@ -119,9 +188,12 @@ class AptitudeController:
                     "message": "Question not found."
                 }), 404
 
+            updated_doc = db.aptitude_questions.find_one({"_id": ObjectId(question_id)})
+
             return jsonify({
                 "success": True,
-                "message": "Question updated successfully."
+                "message": "Question updated successfully.",
+                "data": AptitudeQuestion.response(updated_doc)
             }), 200
 
         except Exception as error:
@@ -132,12 +204,19 @@ class AptitudeController:
 
     @staticmethod
     def delete_question(question_id):
+        """
+        DELETE /api/aptitude/<question_id>
+        Deletes an aptitude question by ID.
+        """
         try:
-            db = Database.get_db()
+            if not ObjectId.is_valid(question_id):
+                return jsonify({
+                    "success": False,
+                    "message": "Invalid question ID format."
+                }), 400
 
-            result = db.aptitude_questions.delete_one({
-                "_id": ObjectId(question_id)
-            })
+            db = Database.get_db()
+            result = db.aptitude_questions.delete_one({"_id": ObjectId(question_id)})
 
             if result.deleted_count == 0:
                 return jsonify({
@@ -158,32 +237,46 @@ class AptitudeController:
 
     @staticmethod
     def generate_assessment():
+        """
+        POST /api/aptitude/generate
+        Randomly samples questions from MongoDB based on difficulty and size.
+        """
         try:
+            data = request.get_json(silent=True) or {}
+            num_questions = int(data.get("numberOfQuestions", data.get("total_questions", 10)))
+            difficulty = data.get("difficulty")
+
+            match_stage = {"isActive": True}
+            if difficulty:
+                match_stage["difficulty"] = difficulty
+
+            pipeline = [
+                {"$match": match_stage},
+                {"$sample": {"size": max(1, num_questions)}}
+            ]
+
             db = Database.get_db()
+            sampled_docs = list(db.aptitude_questions.aggregate(pipeline))
 
-            questions = list(
-                db.aptitude_questions.aggregate([
-                    {
-                        "$match": {
-                            "is_active": True
-                        }
-                    },
-                    {
-                        "$sample": {
-                            "size": 20
-                        }
-                    }
-                ])
-            )
+            # If fewer found with specific difficulty, fallback to any active question
+            if len(sampled_docs) < num_questions and difficulty:
+                fallback_pipeline = [
+                    {"$match": {"isActive": True}},
+                    {"$sample": {"size": max(1, num_questions)}}
+                ]
+                sampled_docs = list(db.aptitude_questions.aggregate(fallback_pipeline))
 
-            for question in questions:
-                question["_id"] = str(question["_id"])
-                question.pop("correct_answer", None)
+            formatted_questions = []
+            for doc in sampled_docs:
+                item = AptitudeQuestion.response(doc)
+                if item:
+                    item.pop("correctAnswer", None)
+                    formatted_questions.append(item)
 
             return jsonify({
                 "success": True,
-                "total_questions": len(questions),
-                "data": questions
+                "count": len(formatted_questions),
+                "data": formatted_questions
             }), 200
 
         except Exception as error:
@@ -194,31 +287,51 @@ class AptitudeController:
 
     @staticmethod
     def submit_assessment():
+        """
+        POST /api/aptitude/submit
+        Evaluates candidate answers and calculates score & percentage.
+        """
         try:
-            db = Database.get_db()
-
-            data = request.get_json()
-
+            data = request.get_json(silent=True) or {}
             answers = data.get("answers", [])
 
+            if not isinstance(answers, list):
+                return jsonify({
+                    "success": False,
+                    "message": "Answers must be a list of user responses."
+                }), 400
+
+            db = Database.get_db()
             score = 0
+            total_possible_marks = 0
 
-            for answer in answers:
+            for ans in answers:
+                question_id = ans.get("questionId", ans.get("question_id"))
+                selected_answer = ans.get("selectedAnswer", ans.get("selected_option"))
 
-                question = db.aptitude_questions.find_one({
-                    "_id": ObjectId(answer["question_id"])
-                })
+                if not question_id or not ObjectId.is_valid(question_id):
+                    continue
 
-                if (
-                    question
-                    and question["correct_answer"]
-                    == answer["selected_option"]
-                ):
-                    score += question.get("marks", 1)
+                q_doc = db.aptitude_questions.find_one({"_id": ObjectId(question_id)})
+                if not q_doc:
+                    continue
+
+                q_marks = q_doc.get("marks", 1)
+                total_possible_marks += q_marks
+
+                correct = q_doc.get("correctAnswer", q_doc.get("correct_answer"))
+                if str(correct).strip() == str(selected_answer).strip():
+                    score += q_marks
+
+            if total_possible_marks > 0:
+                percentage = round((score / total_possible_marks) * 100)
+            else:
+                percentage = 0
 
             return jsonify({
                 "success": True,
-                "score": score
+                "score": score,
+                "percentage": percentage
             }), 200
 
         except Exception as error:
@@ -226,11 +339,3 @@ class AptitudeController:
                 "success": False,
                 "message": str(error)
             }), 500
-
-    @staticmethod
-    def get_all_questions():
-        return AptitudeController.get_questions()
-
-    @staticmethod
-    def get_question_by_id(question_id):
-        return AptitudeController.get_question(question_id)

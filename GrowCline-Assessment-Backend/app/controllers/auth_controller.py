@@ -1,22 +1,46 @@
 """
-Authentication Controller
+Authentication Controller Module
 Handles user registration, login, and profile retrieval.
 """
 
-from flask import request, jsonify
+from datetime import datetime, timezone
+from flask import request, jsonify, g
+from bson import ObjectId
+
 try:
     from config.database import Database
 except ImportError:
     from app.config.database import Database
 
 try:
-    from middleware.password_utils import hash_password, verify_password
-    from middleware.jwt_utils import generate_token, decode_token
+    from utils.password_utils import hash_password, verify_password
+    from utils.jwt_utils import generate_token
 except ImportError:
-    from app.middleware.password_utils import hash_password, verify_password
-    from app.middleware.jwt_utils import generate_token, decode_token
+    from app.utils.password_utils import hash_password, verify_password
+    from app.utils.jwt_utils import generate_token
 
-from bson import ObjectId
+
+def serialize_user(user: dict) -> dict:
+    """
+    Serialize a user MongoDB document for JSON responses.
+    Excludes sensitive fields like password.
+    """
+    serialized = {}
+    for key, value in user.items():
+        if key == "password":
+            continue
+        if key == "_id":
+            serialized["_id"] = str(value)
+        elif isinstance(value, ObjectId):
+            serialized[key] = str(value)
+        elif isinstance(value, datetime):
+            serialized[key] = value.isoformat()
+        else:
+            serialized[key] = value
+
+    if "fullName" not in serialized and "name" in serialized:
+        serialized["fullName"] = serialized["name"]
+    return serialized
 
 
 class AuthController:
@@ -24,47 +48,65 @@ class AuthController:
 
     @staticmethod
     def register():
+        """
+        POST /api/auth/register
+        Registers a new candidate user with bcrypt password hashing.
+        """
         try:
-            db = Database.get_db()
+            data = request.get_json(silent=True) or {}
 
-            data = request.get_json()
-
-            name = data.get("name")
+            full_name = data.get("fullName") or data.get("name")
             email = data.get("email")
             password = data.get("password")
             role = data.get("role", "candidate")
 
-            if not name or not email or not password:
+            if not full_name or not email or not password:
                 return jsonify({
                     "success": False,
                     "message": "All fields are required."
                 }), 400
 
-            existing_user = db.users.find_one({
-                "email": email
-            })
+            full_name = str(full_name).strip()
+            email = str(email).strip().lower()
+            password = str(password)
 
+            if not full_name or not email or not password:
+                return jsonify({
+                    "success": False,
+                    "message": "All fields are required."
+                }), 400
+
+            if len(password) < 8:
+                return jsonify({
+                    "success": False,
+                    "message": "Password must be at least 8 characters long."
+                }), 400
+
+            db = Database.get_db()
+            existing_user = db.users.find_one({"email": email})
             if existing_user:
                 return jsonify({
                     "success": False,
                     "message": "Email already exists."
-                }), 409
+                }), 400
 
             hashed_password = hash_password(password)
+            now = datetime.now(timezone.utc)
 
-            user = {
-                "name": name,
+            user_doc = {
+                "fullName": full_name,
+                "name": full_name,
                 "email": email,
                 "password": hashed_password,
-                "role": role
+                "role": role,
+                "createdAt": now,
             }
 
-            result = db.users.insert_one(user)
+            db.users.insert_one(user_doc)
 
             return jsonify({
                 "success": True,
-                "message": "User registered successfully.",
-                "user_id": str(result.inserted_id)
+                "message": "User registered successfully"
             }), 201
 
         except Exception as error:
@@ -75,10 +117,12 @@ class AuthController:
 
     @staticmethod
     def login():
+        """
+        POST /api/auth/login
+        Validates user credentials and returns a JWT access token.
+        """
         try:
-            db = Database.get_db()
-
-            data = request.get_json()
+            data = request.get_json(silent=True) or {}
 
             email = data.get("email")
             password = data.get("password")
@@ -86,40 +130,36 @@ class AuthController:
             if not email or not password:
                 return jsonify({
                     "success": False,
-                    "message": "Email and password are required."
+                    "message": "All fields are required."
                 }), 400
 
-            user = db.users.find_one({
-                "email": email
-            })
+            email = str(email).strip().lower()
+            password = str(password)
 
-            if not user:
+            db = Database.get_db()
+            user = db.users.find_one({"email": email})
+
+            if not user or not verify_password(password, user.get("password", "")):
                 return jsonify({
                     "success": False,
-                    "message": "Invalid credentials."
-                }), 401
-
-            if not verify_password(password, user["password"]):
-                return jsonify({
-                    "success": False,
-                    "message": "Invalid credentials."
+                    "message": "Invalid email or password."
                 }), 401
 
             token = generate_token({
                 "id": str(user["_id"]),
-                "email": user["email"],
-                "role": user["role"]
+                "email": user.get("email", ""),
+                "role": user.get("role", "candidate")
             })
+
+            full_name = user.get("fullName", user.get("name", ""))
 
             return jsonify({
                 "success": True,
-                "message": "Login successful.",
                 "token": token,
                 "user": {
-                    "id": str(user["_id"]),
-                    "name": user["name"],
-                    "email": user["email"],
-                    "role": user["role"]
+                    "_id": str(user["_id"]),
+                    "fullName": full_name,
+                    "email": user.get("email", "")
                 }
             }), 200
 
@@ -131,37 +171,28 @@ class AuthController:
 
     @staticmethod
     def get_profile(user_id=None):
+        """
+        GET /api/auth/profile
+        Returns the profile of the currently authenticated user.
+        """
         try:
-            if not user_id:
-                user_id = request.args.get("user_id", request.args.get("userId"))
-            if not user_id and request.is_json:
-                user_id = request.get_json().get("user_id", request.get_json().get("userId"))
+            user = getattr(g, "current_user", None)
 
-            if not user_id:
-                return jsonify({
-                    "success": False,
-                    "message": "User ID is required."
-                }), 400
-
-            db = Database.get_db()
-
-            user = db.users.find_one({
-                "_id": ObjectId(user_id)
-            })
+            if not user and user_id:
+                db = Database.get_db()
+                user = db.users.find_one({"_id": ObjectId(user_id)})
 
             if not user:
                 return jsonify({
                     "success": False,
-                    "message": "User not found."
-                }), 404
+                    "message": "Unauthorized."
+                }), 401
 
-            user.pop("password", None)
-
-            user["_id"] = str(user["_id"])
+            serialized_user = serialize_user(user)
 
             return jsonify({
                 "success": True,
-                "user": user
+                "user": serialized_user
             }), 200
 
         except Exception as error:
@@ -172,12 +203,18 @@ class AuthController:
 
     @staticmethod
     def update_profile(user_id=None):
+        """
+        PUT /api/auth/profile
+        Updates candidate profile information.
+        """
         try:
-            data = request.get_json()
+            user = getattr(g, "current_user", None)
+            data = request.get_json(silent=True) or {}
+
+            if not user_id and user:
+                user_id = str(user["_id"])
             if not user_id:
-                user_id = data.get("user_id", data.get("userId"))
-            if not user_id:
-                user_id = request.args.get("user_id", request.args.get("userId"))
+                user_id = data.get("user_id") or request.args.get("user_id")
 
             if not user_id:
                 return jsonify({
@@ -187,10 +224,11 @@ class AuthController:
 
             db = Database.get_db()
             update_fields = {}
-            if "name" in data or "full_name" in data:
-                update_fields["name"] = data.get("name", data.get("full_name"))
+            if "fullName" in data or "name" in data:
+                update_fields["fullName"] = data.get("fullName", data.get("name"))
+                update_fields["name"] = update_fields["fullName"]
             if "email" in data:
-                update_fields["email"] = data["email"]
+                update_fields["email"] = str(data["email"]).strip().lower()
 
             if not update_fields:
                 return jsonify({
@@ -211,12 +249,18 @@ class AuthController:
 
     @staticmethod
     def change_password(user_id=None):
+        """
+        PUT /api/auth/change-password
+        Changes the candidate password after verifying current password.
+        """
         try:
-            data = request.get_json()
+            user = getattr(g, "current_user", None)
+            data = request.get_json(silent=True) or {}
+
+            if not user_id and user:
+                user_id = str(user["_id"])
             if not user_id:
-                user_id = data.get("user_id", data.get("userId"))
-            if not user_id:
-                user_id = request.args.get("user_id", request.args.get("userId"))
+                user_id = data.get("user_id") or request.args.get("user_id")
 
             current_password = data.get("current_password", data.get("currentPassword"))
             new_password = data.get("new_password", data.get("newPassword"))
@@ -228,8 +272,8 @@ class AuthController:
                 }), 400
 
             db = Database.get_db()
-            user = db.users.find_one({"_id": ObjectId(user_id)})
-            if not user or not verify_password(current_password, user.get("password", "")):
+            found_user = db.users.find_one({"_id": ObjectId(user_id)})
+            if not found_user or not verify_password(current_password, found_user.get("password", "")):
                 return jsonify({
                     "success": False,
                     "message": "Invalid current password."
