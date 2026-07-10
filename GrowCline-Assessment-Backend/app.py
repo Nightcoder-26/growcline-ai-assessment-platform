@@ -64,6 +64,11 @@ from app.routes.proctoring_routes import router as proctoring_router
 app.include_router(proctoring_router)
 # ────────────────────────────────────────────────────────────────────────────
 
+# ── Team B: Cheating Detection Engine Module ────────────────────────────────
+from app.routes.cheating_detection_routes import router as cheating_router
+app.include_router(cheating_router)
+# ────────────────────────────────────────────────────────────────────────────
+
 
 @app.get("/")
 async def home():
