@@ -22,6 +22,7 @@ from app.routes import (
     assessment_bp,
     assessments_plural_bp,
     coding_bp,
+    user_bp,
 )
 
 app.register_blueprint(auth_bp)
@@ -32,6 +33,10 @@ app.register_blueprint(aptitude_bp, url_prefix="/api/aptitude")
 app.register_blueprint(assessment_bp, url_prefix="/api/assessment")
 app.register_blueprint(assessments_plural_bp, url_prefix="/api/assessments")
 app.register_blueprint(coding_bp, url_prefix="/api/coding")
+app.register_blueprint(
+    user_bp,
+    url_prefix="/api/users"
+)
 
 
 

@@ -1,4 +1,51 @@
-from marshmallow import Schema, ValidationError, fields, validate, validates, validates_schema
+from marshmallow import Schema, ValidationError, fields, validate, validates, validates_schema, pre_load
+
+
+class UserCreateSchema(Schema):
+    """Schema for validating user creation payloads."""
+    fullName = fields.Str(
+        required=True,
+        validate=validate.Length(min=2, max=100),
+        error_messages={"required": "fullName is required."}
+    )
+    email = fields.Email(
+        required=True,
+        error_messages={
+            "required": "email is required.",
+            "invalid": "Enter a valid email address."
+        }
+    )
+    password = fields.Str(
+        required=True,
+        validate=validate.Length(min=6, max=128),
+        error_messages={"required": "password is required."}
+    )
+    role = fields.Str(load_default="candidate")
+
+    @pre_load
+    def normalize_name(self, data, **kwargs):
+        if isinstance(data, dict):
+            data = dict(data)
+            if "fullName" not in data and "name" in data:
+                data["fullName"] = data["name"]
+        return data
+
+
+class UserUpdateSchema(Schema):
+    """Schema for validating user update payloads."""
+    fullName = fields.Str(validate=validate.Length(min=2, max=100))
+    name = fields.Str(validate=validate.Length(min=2, max=100))
+    email = fields.Email(error_messages={"invalid": "Enter a valid email address."})
+    password = fields.Str(validate=validate.Length(min=6, max=128))
+    role = fields.Str()
+
+    @pre_load
+    def normalize_name(self, data, **kwargs):
+        if isinstance(data, dict):
+            data = dict(data)
+            if "fullName" not in data and "name" in data:
+                data["fullName"] = data["name"]
+        return data
 
 
 class UserRegistrationSchema(Schema):
