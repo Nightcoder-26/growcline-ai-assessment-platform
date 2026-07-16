@@ -1,0 +1,180 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: "Segoe UI", sans-serif;
+  background: #f0f4f8;
+  color: #2d3748;
+}
+
+/* Header */
+.header {
+  background: linear-gradient(135deg, #1a73e8, #0d47a1);
+  color: white;
+  padding: 16px 24px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+}
+.header-content {
+  max-width: 1100px;
+  margin: auto;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.header h1 { font-size: 1.5rem; }
+
+/* Main */
+.main {
+  max-width: 1100px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+
+/* Search */
+.search-input {
+  width: 100%;
+  padding: 10px 16px;
+  font-size: 0.95rem;
+  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  outline: none;
+  transition: border 0.2s;
+}
+.search-input:focus { border-color: #1a73e8; }
+
+/* Table */
+.table-wrapper { overflow-x: auto; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+.table { width: 100%; border-collapse: collapse; }
+.table th { background: #eaf0fb; padding: 12px 16px; text-align: left; font-size: 0.85rem; color: #555; text-transform: uppercase; }
+.table td { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; font-size: 0.9rem; }
+.table tr:hover td { background: #f7faff; }
+.table tr:last-child td { border-bottom: none; }
+
+/* Buttons */
+.btn-primary {
+  background: #1a73e8;
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+  transition: background 0.2s;
+}
+.btn-primary:hover { background: #1558c0; }
+
+.btn-edit {
+  background: #e8f0fe;
+  color: #1a73e8;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-right: 6px;
+  font-size: 0.85rem;
+  transition: background 0.2s;
+}
+.btn-edit:hover { background: #c4d7ff; }
+
+.btn-delete {
+  background: #fce8e8;
+  color: #d93025;
+  border: none;
+  padding: 6px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  transition: background 0.2s;
+}
+.btn-delete:hover { background: #f9c4c4; }
+
+.btn-cancel {
+  background: #f0f0f0;
+  color: #333;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 100;
+}
+.modal {
+  background: white;
+  border-radius: 12px;
+  padding: 28px;
+  width: 560px;
+  max-width: 95vw;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+}
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+.modal-header h2 { font-size: 1.2rem; color: #1a73e8; }
+.close-btn {
+  background: none; border: none;
+  font-size: 1.1rem; cursor: pointer; color: #999;
+}
+.close-btn:hover { color: #333; }
+
+/* Form */
+.form-row { display: flex; gap: 16px; }
+.form-group { flex: 1; margin-bottom: 14px; }
+.form-group label { display: block; font-size: 0.82rem; font-weight: 600; color: #555; margin-bottom: 4px; }
+.form-group input,
+.form-group select,
+.form-group textarea {
+  width: 100%; padding: 9px 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  outline: none;
+  transition: border 0.2s;
+  font-family: inherit;
+}
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus { border-color: #1a73e8; }
+.form-group textarea { resize: vertical; }
+
+.form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+/* Toast */
+.toast {
+  position: fixed;
+  bottom: 24px; right: 24px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  color: white;
+  font-size: 0.9rem;
+  z-index: 999;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  animation: slideUp 0.3s ease;
+}
+.toast.success { background: #34a853; }
+.toast.error { background: #d93025; }
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.empty { text-align: center; color: #888; padding: 40px; background: white; border-radius: 10px; }
+.loading { text-align: center; color: #888; padding: 40px; }
