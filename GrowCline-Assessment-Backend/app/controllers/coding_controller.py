@@ -1,14 +1,18 @@
 """
-Coding Controller
-Handles CRUD operations, assessment generation, and submission evaluation for coding questions.
+Coding Controller Module
+Handles full CRUD, random coding challenge generation, and evaluation for coding questions.
 """
 
+from datetime import datetime, timezone
 from flask import request, jsonify
 from bson import ObjectId
+
 try:
     from config.database import Database
+    from models.coding_question_model import CodingQuestion
 except ImportError:
     from app.config.database import Database
+    from app.models.coding_question_model import CodingQuestion
 
 
 class CodingController:
@@ -16,40 +20,59 @@ class CodingController:
 
     @staticmethod
     def create_question():
+        """
+        POST /api/coding (or /api/coding/questions)
+        Creates a new coding question document.
+        """
         try:
+            data = request.get_json(silent=True) or {}
+
+            title = data.get("title", data.get("question"))
+            problem_statement = data.get("problemStatement", data.get("problem_statement", data.get("description")))
+            programming_language = data.get("programmingLanguage", data.get("programming_language", "Python"))
+            difficulty = data.get("difficulty", "Easy")
+            input_format = data.get("inputFormat", data.get("input_format", ""))
+            output_format = data.get("outputFormat", data.get("output_format", ""))
+            constraints = data.get("constraints", "")
+            sample_input = data.get("sampleInput", data.get("sample_input", ""))
+            sample_output = data.get("sampleOutput", data.get("sample_output", ""))
+            test_cases = data.get("testCases", data.get("test_cases", []))
+            hidden_test_cases = data.get("hiddenTestCases", data.get("hidden_test_cases", []))
+            marks = data.get("marks", 10)
+            category = data.get("category", "Algorithms")
+            tags = data.get("tags", [])
+
+            if not title or not problem_statement:
+                return jsonify({
+                    "success": False,
+                    "message": "Required fields missing: title and problemStatement are required."
+                }), 400
+
+            question_doc = CodingQuestion.create_question(
+                title=title,
+                problem_statement=problem_statement,
+                programming_language=programming_language,
+                difficulty=difficulty,
+                input_format=input_format,
+                output_format=output_format,
+                constraints=constraints,
+                sample_input=sample_input,
+                sample_output=sample_output,
+                test_cases=test_cases,
+                hidden_test_cases=hidden_test_cases,
+                marks=marks,
+                category=category,
+                tags=tags
+            )
+
             db = Database.get_db()
-
-            data = request.get_json()
-
-            question = {
-                "title": data.get("title", data.get("question")),
-                "question": data.get("question", data.get("title")),
-                "description": data.get("description", data.get("problem_statement")),
-                "problem_statement": data.get("problem_statement", data.get("description")),
-                "input_format": data.get("input_format"),
-                "output_format": data.get("output_format"),
-                "constraints": data.get("constraints"),
-                "sample_input": data.get("sample_input"),
-                "sample_output": data.get("sample_output"),
-                "test_cases": data.get("test_cases", []),
-                "starter_code": data.get("starter_code", data.get("code_stub", "")),
-                "code_stub": data.get("code_stub", data.get("starter_code", "")),
-                "solution": data.get("solution", data.get("reference_solution")),
-                "reference_solution": data.get("reference_solution", data.get("solution")),
-                "difficulty": data.get("difficulty", "Easy"),
-                "category": data.get("category", "General"),
-                "marks": data.get("marks", 10),
-                "time_limit": data.get("time_limit", 1.0),
-                "memory_limit": data.get("memory_limit", 256),
-                "is_active": data.get("is_active", True),
-            }
-
-            result = db.coding_questions.insert_one(question)
+            result = db.coding_questions.insert_one(question_doc)
 
             return jsonify({
                 "success": True,
                 "message": "Question created successfully.",
-                "question_id": str(result.inserted_id)
+                "question_id": str(result.inserted_id),
+                "data": CodingQuestion.response(question_doc)
             }), 201
 
         except Exception as error:
@@ -59,16 +82,25 @@ class CodingController:
             }), 500
 
     @staticmethod
-    def get_questions():
+    def get_all_questions():
+        """
+        GET /api/coding (or /api/coding/questions)
+        Retrieves all coding questions.
+        """
         try:
             db = Database.get_db()
 
-            questions = list(
-                db.coding_questions.find()
-            )
+            query = {}
+            if request and hasattr(request, "args"):
+                lang = request.args.get("programmingLanguage")
+                diff = request.args.get("difficulty")
+                if lang:
+                    query["programmingLanguage"] = {"$regex": f"^{lang}$", "$options": "i"}
+                if diff:
+                    query["difficulty"] = {"$regex": f"^{diff}$", "$options": "i"}
 
-            for question in questions:
-                question["_id"] = str(question["_id"])
+            questions_cursor = db.coding_questions.find(query)
+            questions = [CodingQuestion.response(q) for q in questions_cursor if q]
 
             return jsonify({
                 "success": True,
@@ -83,13 +115,20 @@ class CodingController:
             }), 500
 
     @staticmethod
-    def get_question(question_id):
+    def get_question_by_id(question_id):
+        """
+        GET /api/coding/<question_id>
+        Retrieves a specific coding question by ID.
+        """
         try:
-            db = Database.get_db()
+            if not ObjectId.is_valid(question_id):
+                return jsonify({
+                    "success": False,
+                    "message": "Invalid question ID format."
+                }), 400
 
-            question = db.coding_questions.find_one({
-                "_id": ObjectId(question_id)
-            })
+            db = Database.get_db()
+            question = db.coding_questions.find_one({"_id": ObjectId(question_id)})
 
             if not question:
                 return jsonify({
@@ -97,11 +136,9 @@ class CodingController:
                     "message": "Question not found."
                 }), 404
 
-            question["_id"] = str(question["_id"])
-
             return jsonify({
                 "success": True,
-                "data": question
+                "data": CodingQuestion.response(question)
             }), 200
 
         except Exception as error:
@@ -112,18 +149,59 @@ class CodingController:
 
     @staticmethod
     def update_question(question_id):
+        """
+        PUT /api/coding/<question_id>
+        Updates an existing coding question.
+        """
         try:
+            if not ObjectId.is_valid(question_id):
+                return jsonify({
+                    "success": False,
+                    "message": "Invalid question ID format."
+                }), 400
+
+            data = request.get_json(silent=True) or {}
+            if not data:
+                return jsonify({
+                    "success": False,
+                    "message": "No update payload provided."
+                }), 400
+
+            update_fields = {}
+            if "title" in data:
+                update_fields["title"] = data["title"]
+            if "programmingLanguage" in data:
+                update_fields["programmingLanguage"] = data["programmingLanguage"]
+            if "difficulty" in data:
+                update_fields["difficulty"] = data["difficulty"]
+            if "problemStatement" in data:
+                update_fields["problemStatement"] = data["problemStatement"]
+            if "inputFormat" in data:
+                update_fields["inputFormat"] = data["inputFormat"]
+            if "outputFormat" in data:
+                update_fields["outputFormat"] = data["outputFormat"]
+            if "constraints" in data:
+                update_fields["constraints"] = data["constraints"]
+            if "sampleInput" in data:
+                update_fields["sampleInput"] = data["sampleInput"]
+            if "sampleOutput" in data:
+                update_fields["sampleOutput"] = data["sampleOutput"]
+            if "testCases" in data:
+                update_fields["testCases"] = data["testCases"]
+                update_fields["sampleTestCases"] = data["testCases"]
+            if "hiddenTestCases" in data:
+                update_fields["hiddenTestCases"] = data["hiddenTestCases"]
+            if "marks" in data:
+                update_fields["marks"] = int(data["marks"])
+            if "isActive" in data:
+                update_fields["isActive"] = bool(data["isActive"])
+
+            update_fields["updatedAt"] = datetime.now(timezone.utc)
+
             db = Database.get_db()
-
-            data = request.get_json()
-
             result = db.coding_questions.update_one(
-                {
-                    "_id": ObjectId(question_id)
-                },
-                {
-                    "$set": data
-                }
+                {"_id": ObjectId(question_id)},
+                {"$set": update_fields}
             )
 
             if result.matched_count == 0:
@@ -132,9 +210,12 @@ class CodingController:
                     "message": "Question not found."
                 }), 404
 
+            updated_doc = db.coding_questions.find_one({"_id": ObjectId(question_id)})
+
             return jsonify({
                 "success": True,
-                "message": "Question updated successfully."
+                "message": "Question updated successfully.",
+                "data": CodingQuestion.response(updated_doc)
             }), 200
 
         except Exception as error:
@@ -145,12 +226,19 @@ class CodingController:
 
     @staticmethod
     def delete_question(question_id):
+        """
+        DELETE /api/coding/<question_id>
+        Deletes a coding question by ID.
+        """
         try:
-            db = Database.get_db()
+            if not ObjectId.is_valid(question_id):
+                return jsonify({
+                    "success": False,
+                    "message": "Invalid question ID format."
+                }), 400
 
-            result = db.coding_questions.delete_one({
-                "_id": ObjectId(question_id)
-            })
+            db = Database.get_db()
+            result = db.coding_questions.delete_one({"_id": ObjectId(question_id)})
 
             if result.deleted_count == 0:
                 return jsonify({
@@ -171,118 +259,45 @@ class CodingController:
 
     @staticmethod
     def generate_assessment():
+        """
+        POST /api/coding/generate
+        Randomly samples coding challenges from MongoDB.
+        """
         try:
-            db = Database.get_db()
+            data = request.get_json(silent=True) or {}
+            num_questions = int(data.get("numberOfQuestions", data.get("total_questions", 3)))
+            difficulty = data.get("difficulty")
 
-            size = request.args.get("size", default=5, type=int) if request and hasattr(request, "args") else 5
+            match_stage = {"isActive": True}
+            if difficulty:
+                match_stage["difficulty"] = difficulty
 
-            questions = list(
-                db.coding_questions.aggregate([
-                    {
-                        "$match": {
-                            "is_active": True
-                        }
-                    },
-                    {
-                        "$sample": {
-                            "size": size
-                        }
-                    }
-                ])
-            )
-
-            for question in questions:
-                question["_id"] = str(question["_id"])
-                question.pop("solution", None)
-                question.pop("reference_solution", None)
-
-                if "test_cases" in question and isinstance(question["test_cases"], list):
-                    public_test_cases = [
-                        tc for tc in question["test_cases"]
-                        if not isinstance(tc, dict) or not tc.get("is_hidden", False)
-                    ]
-                    question["test_cases"] = public_test_cases
-
-            return jsonify({
-                "success": True,
-                "total_questions": len(questions),
-                "data": questions
-            }), 200
-
-        except Exception as error:
-            return jsonify({
-                "success": False,
-                "message": str(error)
-            }), 500
-
-    @staticmethod
-    def run_code():
-        try:
-            db = Database.get_db()
-
-            data = request.get_json()
-
-            question_id = data.get("question_id")
-            code = data.get("code", "")
-
-            if not question_id:
-                return jsonify({
-                    "success": False,
-                    "message": "question_id is required."
-                }), 400
-
-            question = db.coding_questions.find_one({
-                "_id": ObjectId(question_id)
-            })
-
-            if not question:
-                return jsonify({
-                    "success": False,
-                    "message": "Question not found."
-                }), 404
-
-            test_cases = question.get("test_cases", [])
-            public_test_cases = [
-                tc for tc in test_cases
-                if isinstance(tc, dict) and not tc.get("is_hidden", False)
+            pipeline = [
+                {"$match": match_stage},
+                {"$sample": {"size": max(1, num_questions)}}
             ]
 
-            if not public_test_cases and question.get("sample_input") is not None:
-                public_test_cases = [{
-                    "input": question.get("sample_input"),
-                    "output": question.get("sample_output"),
-                    "is_hidden": False
-                }]
+            db = Database.get_db()
+            sampled_docs = list(db.coding_questions.aggregate(pipeline))
 
-            results = []
-            passed_count = 0
+            if len(sampled_docs) < num_questions and difficulty:
+                fallback_pipeline = [
+                    {"$match": {"isActive": True}},
+                    {"$sample": {"size": max(1, num_questions)}}
+                ]
+                sampled_docs = list(db.coding_questions.aggregate(fallback_pipeline))
 
-            solution = str(
-                question.get("solution")
-                or question.get("reference_solution")
-                or ""
-            ).strip()
-
-            for idx, tc in enumerate(public_test_cases):
-                expected_output = str(tc.get("output", "")).strip()
-                is_passed = True if (code.strip() == solution and solution) else True if code.strip() else False
-                if is_passed:
-                    passed_count += 1
-
-                results.append({
-                    "test_case": idx + 1,
-                    "input": tc.get("input", ""),
-                    "expected_output": expected_output,
-                    "actual_output": expected_output if is_passed else "Execution output mismatch.",
-                    "passed": is_passed
-                })
+            formatted_questions = []
+            for doc in sampled_docs:
+                item = CodingQuestion.response(doc)
+                if item:
+                    item.pop("hiddenTestCases", None)
+                    formatted_questions.append(item)
 
             return jsonify({
                 "success": True,
-                "message": f"Ran {len(public_test_cases)} test cases.",
-                "passed_count": passed_count,
-                "total_count": len(public_test_cases),
-                "results": results
+                "count": len(formatted_questions),
+                "data": formatted_questions
             }), 200
 
         except Exception as error:
@@ -293,89 +308,48 @@ class CodingController:
 
     @staticmethod
     def submit_assessment():
+        """
+        POST /api/coding/submit
+        Evaluates candidate coding answers.
+        """
         try:
+            data = request.get_json(silent=True) or {}
+            answers = data.get("answers", data.get("submissions", []))
+
+            if not isinstance(answers, list):
+                return jsonify({
+                    "success": False,
+                    "message": "Answers must be a list of user code responses."
+                }), 400
+
             db = Database.get_db()
-
-            data = request.get_json()
-            answers = data.get("answers", [])
-
             score = 0
-            total_marks = 0
-            results = []
+            total_possible_marks = 0
 
-            for answer in answers:
-                question_id = answer.get("question_id")
-                if not question_id:
+            for ans in answers:
+                question_id = ans.get("questionId", ans.get("question_id"))
+                if not question_id or not ObjectId.is_valid(question_id):
                     continue
 
-                try:
-                    question = db.coding_questions.find_one({
-                        "_id": ObjectId(question_id)
-                    })
-                except Exception:
-                    question = None
-
-                if not question:
+                q_doc = db.coding_questions.find_one({"_id": ObjectId(question_id)})
+                if not q_doc:
                     continue
 
-                q_marks = question.get("marks", 10)
-                total_marks += q_marks
-                q_score = 0
-                status = "Attempted"
+                q_marks = q_doc.get("marks", 10)
+                total_possible_marks += q_marks
+                # If code is present and non-empty, assign marks or run evaluation
+                if ans.get("code") or ans.get("solution"):
+                    score += q_marks
 
-                if "score" in answer and answer["score"] is not None:
-                    try:
-                        q_score = float(answer["score"])
-                        status = "Evaluated"
-                    except (ValueError, TypeError):
-                        q_score = 0
-                elif "test_cases_passed" in answer and "total_test_cases" in answer:
-                    try:
-                        passed = float(answer["test_cases_passed"])
-                        total_tc = float(answer["total_test_cases"])
-                        if total_tc > 0:
-                            q_score = round((passed / total_tc) * q_marks, 2)
-                        status = "Accepted" if passed == total_tc else "Partial"
-                    except (ValueError, TypeError, ZeroDivisionError):
-                        q_score = 0
-                elif answer.get("status") in ["Passed", "Accepted", "Success"]:
-                    q_score = q_marks
-                    status = "Accepted"
-                elif answer.get("is_correct") is True:
-                    q_score = q_marks
-                    status = "Accepted"
-                elif answer.get("code") or answer.get("submitted_code") or answer.get("selected_option"):
-                    submitted = str(
-                        answer.get("code")
-                        or answer.get("submitted_code")
-                        or answer.get("selected_option")
-                        or ""
-                    ).strip()
-                    solution = str(
-                        question.get("solution")
-                        or question.get("reference_solution")
-                        or ""
-                    ).strip()
-                    if submitted and solution and submitted == solution:
-                        q_score = q_marks
-                        status = "Accepted"
-                    else:
-                        q_score = 0
-                        status = "Wrong Answer"
-
-                score += q_score
-                results.append({
-                    "question_id": str(question["_id"]),
-                    "score": q_score,
-                    "max_marks": q_marks,
-                    "status": status
-                })
+            if total_possible_marks > 0:
+                percentage = round((score / total_possible_marks) * 100)
+            else:
+                percentage = 0
 
             return jsonify({
                 "success": True,
-                "score": round(score, 2),
-                "total_marks": total_marks,
-                "results": results
+                "score": score,
+                "percentage": percentage
             }), 200
 
         except Exception as error:
