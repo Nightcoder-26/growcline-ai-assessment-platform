@@ -44,6 +44,10 @@ def _make_app():
     Patches Database.connect to prevent any real MongoDB connection attempt.
     """
     import importlib.util
+    import sys
+
+    if "__app_py__" in sys.modules:
+        return sys.modules["__app_py__"].app
 
     with patch("app.config.database.Database.connect", return_value=None):
         tests_dir = os.path.dirname(os.path.abspath(__file__))
@@ -52,6 +56,7 @@ def _make_app():
 
         spec = importlib.util.spec_from_file_location("__app_py__", app_py)
         app_mod = importlib.util.module_from_spec(spec)
+        sys.modules["__app_py__"] = app_mod
         spec.loader.exec_module(app_mod)
 
     # Ensure Config has a JWT_SECRET for test decoding
