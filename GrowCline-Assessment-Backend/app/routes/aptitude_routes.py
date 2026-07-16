@@ -1,3 +1,8 @@
+"""
+Aptitude Routes Module
+Registers endpoints for Aptitude CRUD, test generation, and submission.
+"""
+
 from flask import Blueprint
 
 try:
@@ -7,23 +12,24 @@ except ImportError:
 
 aptitude_bp = Blueprint("aptitude", __name__, url_prefix="/api/aptitude")
 
-# Create Question
-aptitude_bp.route("/questions", methods=["POST"])(AptitudeController.create_question)
+# Root /api/aptitude CRUD routes (must work directly on POST /api/aptitude per prompt requirements)
+aptitude_bp.route("", methods=["POST"], endpoint="create_question_root")(AptitudeController.create_question)
+aptitude_bp.route("/", methods=["POST"], endpoint="create_question_root_slash")(AptitudeController.create_question)
+aptitude_bp.route("", methods=["GET"], endpoint="get_all_questions_root")(AptitudeController.get_all_questions)
+aptitude_bp.route("/", methods=["GET"], endpoint="get_all_questions_root_slash")(AptitudeController.get_all_questions)
 
-# Get All Questions
-aptitude_bp.route("/questions", methods=["GET"])(AptitudeController.get_all_questions)
+# Single Question by ID under /api/aptitude/<question_id>
+aptitude_bp.route("/<string:question_id>", methods=["GET"], endpoint="get_question_by_id")(AptitudeController.get_question_by_id)
+aptitude_bp.route("/<string:question_id>", methods=["PUT"], endpoint="update_question")(AptitudeController.update_question)
+aptitude_bp.route("/<string:question_id>", methods=["DELETE"], endpoint="delete_question")(AptitudeController.delete_question)
 
-# Get Question By ID
-aptitude_bp.route("/questions/<string:question_id>", methods=["GET"])(AptitudeController.get_question_by_id)
+# Backward-compatible routes under /api/aptitude/questions
+aptitude_bp.route("/questions", methods=["POST"], endpoint="create_question_sub")(AptitudeController.create_question)
+aptitude_bp.route("/questions", methods=["GET"], endpoint="get_all_questions_sub")(AptitudeController.get_all_questions)
+aptitude_bp.route("/questions/<string:question_id>", methods=["GET"], endpoint="get_question_by_id_sub")(AptitudeController.get_question_by_id)
+aptitude_bp.route("/questions/<string:question_id>", methods=["PUT"], endpoint="update_question_sub")(AptitudeController.update_question)
+aptitude_bp.route("/questions/<string:question_id>", methods=["DELETE"], endpoint="delete_question_sub")(AptitudeController.delete_question)
 
-# Update Question
-aptitude_bp.route("/questions/<string:question_id>", methods=["PUT"])(AptitudeController.update_question)
-
-# Delete Question
-aptitude_bp.route("/questions/<string:question_id>", methods=["DELETE"])(AptitudeController.delete_question)
-
-# Generate Aptitude Assessment
-aptitude_bp.route("/generate", methods=["POST"])(AptitudeController.generate_assessment)
-
-# Submit Aptitude Assessment
-aptitude_bp.route("/submit", methods=["POST"])(AptitudeController.submit_assessment)
+# Assessment Generation & Submission
+aptitude_bp.route("/generate", methods=["POST"], endpoint="generate_assessment")(AptitudeController.generate_assessment)
+aptitude_bp.route("/submit", methods=["POST"], endpoint="submit_assessment")(AptitudeController.submit_assessment)

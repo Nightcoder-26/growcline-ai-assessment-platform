@@ -1,26 +1,42 @@
-from marshmallow import Schema, fields, validate
+"""
+Aptitude Schema Module
+Marshmallow schemas for Aptitude Question validation.
+"""
+
+from marshmallow import Schema, fields, validate, pre_load
 
 
 class AptitudeQuestionSchema(Schema):
-    question = fields.Str(required=True, validate=validate.Length(min=5, max=1000))
-    category = fields.Str(required=True, validate=validate.Length(min=2, max=100))
+    question = fields.Str(required=True, validate=validate.Length(min=3, max=2000))
+    category = fields.Str(required=True, validate=validate.Length(min=2, max=200))
     difficulty = fields.Str(required=True, validate=validate.OneOf(["Easy", "Medium", "Hard"]))
-    options = fields.List(fields.Str(), required=True, validate=validate.Length(min=2, max=6))
-    correct_answer = fields.Str(required=True)
+    options = fields.List(fields.Str(), required=True, validate=validate.Length(min=2, max=10))
+    correctAnswer = fields.Str(required=False)
+    correct_answer = fields.Str(required=False)
     explanation = fields.Str(load_default="")
     marks = fields.Int(required=False, load_default=1, validate=validate.Range(min=1, max=100))
-    question_type = fields.Str(load_default="MCQ")
     questionType = fields.Str(load_default="MCQ")
     tags = fields.List(fields.Str(), load_default=[])
 
+    @pre_load
+    def normalize_fields(self, data, **kwargs):
+        if isinstance(data, dict):
+            if "correctAnswer" in data and "correct_answer" not in data:
+                data = dict(data)
+                data["correct_answer"] = data["correctAnswer"]
+            elif "correct_answer" in data and "correctAnswer" not in data:
+                data = dict(data)
+                data["correctAnswer"] = data["correct_answer"]
+        return data
+
 
 class AptitudeAssessmentSchema(Schema):
-    total_questions = fields.Int(required=True, validate=validate.Range(min=1))
+    numberOfQuestions = fields.Int(required=False, load_default=10, validate=validate.Range(min=1, max=100))
+    total_questions = fields.Int(required=False, load_default=10, validate=validate.Range(min=1, max=100))
     difficulty = fields.Str(validate=validate.OneOf(["Easy", "Medium", "Hard"]), load_default=None)
     category = fields.Str(load_default=None)
 
 
 class AptitudeSubmissionSchema(Schema):
-    assessment_id = fields.Str(required=False)
-    user_id = fields.Str(required=False)
-    answers = fields.List(fields.Dict(), required=True, validate=validate.Length(min=1))
+    assessmentId = fields.Str(required=False)
+    answers = fields.List(fields.Dict(), required=True)
