@@ -3,10 +3,5 @@
 venv/
 env/
 
-# Anirudh Project Local/Build Files
-Anirudh/backend/.env
-Anirudh/backend/patients.db
-Anirudh/backend/__pycache__/
-Anirudh/frontend/node_modules/
-Anirudh/frontend/build/
-Anirudh/frontend/start.log
+# Anirudh Project (All Files)
+Anirudh/
