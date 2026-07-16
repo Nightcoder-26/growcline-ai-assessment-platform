@@ -31,6 +31,18 @@ class Config:
     # Groq AI Configuration
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
+    # AWS S3 Configuration (Video Recording Module)
+    AWS_ACCESS_KEY_ID = os.getenv("AWS_ACCESS_KEY_ID")
+    AWS_SECRET_ACCESS_KEY = os.getenv("AWS_SECRET_ACCESS_KEY")
+    AWS_REGION = os.getenv("AWS_REGION")
+    AWS_S3_BUCKET = os.getenv("AWS_S3_BUCKET")
+
+    # Recording Upload Limits
+    MAX_RECORDING_SIZE_MB = int(os.getenv("MAX_RECORDING_SIZE_MB", 500))
+
+    # Presigned URL Expiry (seconds)
+    RECORDING_URL_EXPIRY_SECONDS = int(os.getenv("RECORDING_URL_EXPIRY_SECONDS", 900))
+
     # Upload Configuration
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "uploads")
     MAX_CONTENT_LENGTH = 16 * 1024 * 1024  # 16 MB

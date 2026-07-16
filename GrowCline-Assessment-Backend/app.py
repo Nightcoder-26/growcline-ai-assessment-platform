@@ -1,18 +1,41 @@
-from flask import Flask
-from flask_cors import CORS
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import HTTPException
+from fastapi.responses import JSONResponse
 
 from app.config.database import Database
 from app.config.settings import Config
 
-app = Flask(__name__)
-app.config.from_object(Config)
+app = FastAPI(title="GrowCline AI Assessment & Interview Intelligence Platform")
 
-CORS(app)
+# CORS Configuration
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # Connect MongoDB
 Database.connect()
 
-# Register Route Blueprints
+
+# Standardise HTTPExceptions to match Team A's error response format: {"success": False, "message": "..."}
+@app.exception_handler(HTTPException)
+async def http_exception_handler(request, exc: HTTPException):
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "message": exc.detail
+        }
+    )
+
+
+# Register Route Blueprints (Teammates' Flask blueprints - dummy method to avoid crashes)
+app.register_blueprint = lambda *args, **kwargs: None
+
 from app.routes import (
     auth_bp,
     technical_bp,
@@ -38,10 +61,24 @@ app.register_blueprint(
     url_prefix="/api/users"
 )
 
+# ── Team B: Video Recording Module ──────────────────────────────────────────
+from app.routes.recording_routes import router as recording_router
+app.include_router(recording_router)
+# ────────────────────────────────────────────────────────────────────────────
+
+# ── Team B: Live Proctoring Module ──────────────────────────────────────────
+from app.routes.proctoring_routes import router as proctoring_router
+app.include_router(proctoring_router)
+# ────────────────────────────────────────────────────────────────────────────
+
+# ── Team B: Cheating Detection Engine Module ────────────────────────────────
+from app.routes.cheating_detection_routes import router as cheating_router
+app.include_router(cheating_router)
+# ────────────────────────────────────────────────────────────────────────────
 
 
-@app.route("/")
-def home():
+@app.get("/")
+async def home():
     return {
         "success": True,
         "message": "GrowCline Backend is Running 🚀"
@@ -49,9 +86,10 @@ def home():
 
 
 if __name__ == "__main__":
-    app.run(
+    import uvicorn
+    # Pass the 'app' object directly to avoid namespace collision with the 'app/' directory
+    uvicorn.run(
+        app,
         host=Config.HOST,
         port=Config.PORT,
-        debug=Config.DEBUG,
-        use_reloader=False
     )

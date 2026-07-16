@@ -1,0 +1,7 @@
+# Virtual Environment
+.venv/
+venv/
+env/
+
+# Anirudh Project (All Files)
+Anirudh/
