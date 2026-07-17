@@ -76,6 +76,11 @@ from app.routes.cheating_detection_routes import router as cheating_router
 app.include_router(cheating_router)
 # ────────────────────────────────────────────────────────────────────────────
 
+# ── Team B: Interview Analytics Module ──────────────────────────────────────
+from app.routes.interview_analytics_routes import router as interview_analytics_router
+app.include_router(interview_analytics_router)
+# ────────────────────────────────────────────────────────────────────────────
+
 
 @app.get("/")
 async def home():
