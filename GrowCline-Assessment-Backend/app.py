@@ -81,6 +81,11 @@ from app.routes.interview_analytics_routes import router as interview_analytics_
 app.include_router(interview_analytics_router)
 # ────────────────────────────────────────────────────────────────────────────
 
+# ── Team B: AI Interview Module ──────────────────────────────────────────────
+from app.routes.interview_routes import router as interview_router
+app.include_router(interview_router)
+# ────────────────────────────────────────────────────────────────────────────
+
 
 @app.get("/")
 async def home():
