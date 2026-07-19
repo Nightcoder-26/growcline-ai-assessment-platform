@@ -78,8 +78,26 @@ async def get_report(
     GET /api/cheating/interview/{interview_id}/report
 
     Retrieves the generated risk analysis report.
+    Requires admin role.
     """
     return await CheatingDetectionController.get_report(
+        interview_id=interview_id,
+        current_user=current_user,
+    )
+
+
+@router.get("/interview/{interview_id}/report/candidate")
+async def get_report_for_candidate(
+    interview_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    GET /api/cheating/interview/{interview_id}/report/candidate
+
+    Retrieves the cheating report for the interview owner (candidate, read-only).
+    Does NOT require admin role — validates ownership via JWT.
+    """
+    return await CheatingDetectionController.get_report_for_candidate(
         interview_id=interview_id,
         current_user=current_user,
     )
