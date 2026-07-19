@@ -239,3 +239,44 @@ def get_cheating_report(interview_id: str, user_role: str) -> dict:
         raise ValueError("Cheating report not found for this interview.")
 
     return CheatingReport.response(report)
+
+
+def get_cheating_report_for_candidate(interview_id: str, user_id: str) -> dict:
+    """
+    Retrieve an existing cheating report for the specified interview.
+
+    Unlike get_cheating_report(), this function does NOT require admin role.
+    Instead it verifies that the requesting user is the interview owner
+    (i.e. the candidate who sat the interview).
+
+    Args:
+        interview_id: str — the interview ObjectId as a string.
+        user_id: str — the authenticated user's ObjectId as a string.
+
+    Returns:
+        dict — serialized CheatingReport document.
+
+    Raises:
+        ValueError — if the interview or report is not found, or if the
+                     requesting user does not own the interview.
+    """
+    interview_oid = _validate_object_id(interview_id, "interview ID")
+    user_oid = _validate_object_id(user_id, "user ID")
+
+    db = Database.get_db()
+
+    # Verify interview exists
+    interview = db["interviews"].find_one({"_id": interview_oid})
+    if not interview:
+        raise ValueError("Interview not found.")
+
+    # Verify ownership — only the candidate who owns the interview may read their report
+    interview_user_id = interview.get("userId")
+    if str(interview_user_id) != str(user_oid):
+        raise ValueError("Access denied. You do not have permission to access this report.")
+
+    report = db[CheatingReport.COLLECTION].find_one({"interviewId": interview_oid})
+    if not report:
+        raise ValueError("Cheating report not found for this interview.")
+
+    return CheatingReport.response(report)

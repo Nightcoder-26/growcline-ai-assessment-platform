@@ -107,3 +107,42 @@ class CheatingDetectionController:
                     "message": "An unexpected error occurred. Please try again.",
                 }
             )
+
+    @staticmethod
+    async def get_report_for_candidate(interview_id: str, current_user: dict) -> JSONResponse:
+        """
+        GET /api/cheating/interview/<interview_id>/report/candidate
+
+        Retrieves the computed cheating report for the interview owner (candidate).
+        Does NOT require admin role — verifies interview ownership via JWT user_id instead.
+        """
+        try:
+            user_id = str(current_user["id"])
+            report = cheating_detection_service.get_cheating_report_for_candidate(
+                interview_id=interview_id,
+                user_id=user_id,
+            )
+
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "success": True,
+                    "data": report,
+                }
+            )
+
+        except ValueError as error:
+            return _handle_value_error(error)
+        except Exception as error:
+            logger.error(
+                "Unexpected error fetching candidate cheating report for interview %s: %s",
+                interview_id,
+                error,
+            )
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": "An unexpected error occurred. Please try again.",
+                }
+            )
