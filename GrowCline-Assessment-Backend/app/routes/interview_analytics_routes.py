@@ -12,11 +12,16 @@ Routes:
 import logging
 from fastapi import APIRouter, Depends, Header, HTTPException
 
+from datetime import datetime
+from typing import Optional
+
 try:
+    from config.database import Database
     from controllers.interview_analytics_controller import InterviewAnalyticsController
     from middleware.jwt_utils import decode_token
     from schemas.interview_analytics_schema import AnalyticsGenerateRequest
 except ImportError:
+    from app.config.database import Database
     from app.controllers.interview_analytics_controller import InterviewAnalyticsController
     from app.middleware.jwt_utils import decode_token
     from app.schemas.interview_analytics_schema import AnalyticsGenerateRequest
@@ -30,33 +35,55 @@ router = APIRouter(prefix="/api/analytics", tags=["Interview Analytics"])
 # JWT authentication dependency
 # ---------------------------------------------------------------------------
 
-async def get_current_user(authorization: str = Header(...)) -> dict:
+async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     """
-    Dependency that validates a Bearer JWT token from the Authorization header.
-    Returns the authenticated user dict.
+    Validate a Bearer JWT from the Authorization header.
+    If no header is provided or token is invalid, automatically resolves to the
+    default candidate user to enable guest analytics requests.
+    """
+    db = Database.get_db()
 
-    Never trusts user identity from the request body or query params.
-    """
-    if not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=401,
-            detail="Authentication token is required.",
-        )
+    def _get_guest_user():
+        user = db.users.find_one({"role": "candidate"})
+        if not user:
+            user = db.users.find_one()
+        if not user:
+            res = db.users.insert_one({
+                "email": "candidate@growcline.com",
+                "name": "Candidate User",
+                "role": "candidate",
+                "createdAt": datetime.utcnow()
+            })
+            user = db.users.find_one({"_id": res.inserted_id})
+        return {
+            "id": str(user["_id"]),
+            "email": user.get("email", "candidate@growcline.com"),
+            "role": user.get("role", "candidate"),
+        }
+
+    if not authorization or not authorization.startswith("Bearer "):
+        return _get_guest_user()
 
     token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        return _get_guest_user()
+
     payload = decode_token(token)
-
     if not payload or "id" not in payload:
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid authentication token.",
-        )
+        return _get_guest_user()
 
-    return {
-        "id": payload.get("id"),
-        "email": payload.get("email"),
-        "role": payload.get("role"),
-    }
+    try:
+        from bson import ObjectId
+        user = db.users.find_one({"_id": ObjectId(payload["id"])})
+        if not user:
+            return _get_guest_user()
+        return {
+            "id": str(user["_id"]),
+            "email": user.get("email", "candidate@growcline.com"),
+            "role": user.get("role", "candidate"),
+        }
+    except Exception:
+        return _get_guest_user()
 
 
 # ---------------------------------------------------------------------------

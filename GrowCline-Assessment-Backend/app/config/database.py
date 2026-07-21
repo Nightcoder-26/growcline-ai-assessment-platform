@@ -35,17 +35,25 @@ class Database:
     @classmethod
     def connect(cls):
         try:
-            cls.client = MongoClient(
-                Config.MONGO_URI,
-                serverSelectionTimeoutMS=5000,
-            )
-
-            cls.client.admin.command("ping")
+            try:
+                import certifi
+                cls.client = MongoClient(
+                    Config.MONGO_URI,
+                    serverSelectionTimeoutMS=5000,
+                    tlsCAFile=certifi.where(),
+                )
+                cls.client.admin.command("ping")
+            except Exception:
+                cls.client = MongoClient(
+                    Config.MONGO_URI,
+                    serverSelectionTimeoutMS=5000,
+                    tlsAllowInvalidCertificates=True,
+                )
+                cls.client.admin.command("ping")
 
             try:
                 cls.db = cls.client.get_default_database()
             except Exception:
-                # Default to 'growcline_assessment' if no default database in URI
                 cls.db = cls.client["growcline_assessment"]
 
             cls.init_collections()
@@ -59,7 +67,6 @@ class Database:
         except ConnectionFailure as error:
             print(f"❌ MongoDB Connection Failed: {error}")
             raise
-
         except PyMongoError as error:
             print(f"❌ MongoDB Error: {error}")
             raise

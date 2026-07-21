@@ -44,8 +44,8 @@ ALLOWED_EVENT_TYPES = {
 }
 
 SEVERITY_MAPPING = {
-    "PROCTORING_STARTED": "INFO",
-    "PROCTORING_STOPPED": "INFO",
+    "PROCTORING_STARTED": "LOW",
+    "PROCTORING_STOPPED": "LOW",
     "WINDOW_BLUR": "LOW",
     "TAB_SWITCH": "MEDIUM",
     "WINDOW_MINIMIZED": "MEDIUM",
@@ -98,22 +98,27 @@ def _get_owned_interview(db, interview_id_str: str, user_id_str: str) -> dict:
     return interview
 
 
-def _validate_client_timestamp(client_ts: datetime) -> None:
+def _validate_client_timestamp(client_ts) -> None:
     """
     Validate that the client-reported timestamp is not too far in the future.
     """
     if not client_ts:
         return
 
-    # Convert client timestamp to naive UTC if offset-aware
-    if client_ts.tzinfo is not None:
-        client_ts = client_ts.astimezone(timezone.utc).replace(tzinfo=None)
+    if isinstance(client_ts, str):
+        try:
+            client_ts = datetime.fromisoformat(client_ts.replace("Z", "+00:00"))
+        except Exception:
+            return
 
-    now = datetime.utcnow()
-    # Reject if it's more than 5 minutes in the future
-    time_diff = (client_ts - now).total_seconds()
-    if time_diff > 300:
-        raise ValueError("Client timestamp cannot be in the future.")
+    if isinstance(client_ts, datetime):
+        if client_ts.tzinfo is not None:
+            client_ts = client_ts.astimezone(timezone.utc).replace(tzinfo=None)
+
+        now = datetime.utcnow()
+        time_diff = (client_ts - now).total_seconds()
+        if time_diff > 300:
+            raise ValueError("Client timestamp cannot be in the future.")
 
 
 def _is_duplicate_event(db, interview_id: ObjectId, user_id: ObjectId, event_type: str, cooldown_seconds: int = 2) -> bool:

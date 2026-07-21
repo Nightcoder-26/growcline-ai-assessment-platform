@@ -45,12 +45,25 @@ class CheatingReport:
             dict ready to pass to MongoDB update/upsert operations.
         """
         now = datetime.utcnow()
+        status_map = {"LOW": "LOW", "MEDIUM": "MODERATE", "HIGH": "HIGH", "CRITICAL": "CRITICAL"}
+        status_val = status_map.get(risk_level.upper(), "LOW")
+
+        violations_obj = {
+            "faceMissing": event_counts.get("NO_FACE", 0),
+            "multipleFaces": event_counts.get("MULTIPLE_FACES", 0),
+            "tabSwitch": event_counts.get("TAB_SWITCH", 0),
+            "windowMinimized": event_counts.get("FULLSCREEN_EXIT", 0),
+            "backgroundVoice": event_counts.get("BACKGROUND_VOICE", 0),
+        }
+
         return {
             "_id": ObjectId(),
             "interviewId": ObjectId(interview_id),
             "userId": ObjectId(user_id),
             "riskScore": float(risk_score),
             "riskLevel": risk_level,
+            "status": status_val,
+            "violations": violations_obj,
             "totalEvents": int(total_events),
             "suspiciousEvents": int(suspicious_events),
             "eventCounts": event_counts,

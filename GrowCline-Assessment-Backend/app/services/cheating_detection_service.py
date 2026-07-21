@@ -94,11 +94,19 @@ def calculate_risk_score(event_counts: dict) -> tuple:
             - contributions: dict details for scored events
             - suspicious_events: int total count of positive-weighted events
     """
+    # Normalize MongoDB schema keys to scoring weights keys.
+    # FACE_MISSING is the DB alias for NO_FACE.
+    # WINDOW_MINIMIZED and BACKGROUND_VOICE already have their own weights.
+    normalized_counts = {}
+    for et, count in event_counts.items():
+        mapped_key = "NO_FACE" if et == "FACE_MISSING" else et
+        normalized_counts[mapped_key] = normalized_counts.get(mapped_key, 0) + count
+
     raw_score = 0.0
     contributions = {}
     suspicious_events = 0
 
-    for event_type, count in event_counts.items():
+    for event_type, count in normalized_counts.items():
         # Prevent negative counts (precautionary)
         count = max(0, int(count))
 
@@ -187,12 +195,20 @@ def analyze_interview(interview_id: str, user_role: str) -> dict:
     risk_score, risk_level, contributions, suspicious_events = calculate_risk_score(event_counts)
 
     # Upsert report
-    now = datetime.utcnow()
+    status_val = "PASSED" if risk_level == "LOW" else "FLAGGED" if risk_level in ["HIGH", "CRITICAL"] else "REVIEW_REQUIRED"
+    violations_list = [
+        {"eventType": k, "count": v}
+        for k, v in event_counts.items()
+        if v > 0
+    ]
+
     report_data = {
         "interviewId": interview_oid,
         "userId": user_oid,
         "riskScore": risk_score,
         "riskLevel": risk_level,
+        "status": status_val,
+        "violations": violations_list,
         "totalEvents": total_events,
         "suspiciousEvents": suspicious_events,
         "eventCounts": event_counts,

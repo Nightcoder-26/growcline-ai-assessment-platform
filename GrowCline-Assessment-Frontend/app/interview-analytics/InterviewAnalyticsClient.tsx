@@ -1,8 +1,9 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { useAuth } from "@/hooks/useAuth";
-import { useAnalytics } from "@/hooks/useAnalytics";
+import Link from "next/link";
+import apiClient from "@/lib/apiClient";
 
 import AnalyticsHeader from "@/components/interview-analytics/AnalyticsHeader";
 import SummaryCard from "@/components/interview-analytics/SummaryCard";
@@ -11,62 +12,38 @@ import MetricsGrid from "@/components/interview-analytics/MetricsGrid";
 import ProctorSummary from "@/components/interview-analytics/ProctorSummary";
 import AIInsights from "@/components/interview-analytics/AIInsights";
 import RecommendationCard from "@/components/interview-analytics/RecommendationCard";
+import { ArrowLeft, RefreshCw } from "lucide-react";
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Shape expected by the frontend components
 // ---------------------------------------------------------------------------
 
-/** Convert riskScore (0-100) to a confidence-style score (inverse) */
-function riskToConfidence(riskScore: number): number {
-  return Math.max(0, Math.min(100, Math.round(100 - riskScore)));
-}
-
-/** Duration in seconds → "X Minutes" label */
-function formatDuration(seconds: number): string {
-  if (!seconds) return "0 Minutes";
-  const m = Math.floor(seconds / 60);
-  const s = seconds % 60;
-  return s > 0 ? `${m} min ${s} sec` : `${m} Minutes`;
-}
-
-/** Format ISO date string to human-readable */
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  try {
-    return new Date(iso).toLocaleDateString("en-IN", {
-      day: "numeric",
-      month: "long",
-      year: "numeric",
-    });
-  } catch {
-    return iso;
-  }
-}
-
-/** Map overallStatus → RecommendationCard status */
-function mapStatus(overallStatus: string): "Recommended" | "Not Recommended" | "Needs Improvement" {
-  if (overallStatus === "PASSED") return "Recommended";
-  if (overallStatus === "FLAGGED") return "Not Recommended";
-  return "Needs Improvement";
-}
-
-/** Map riskLevel → AI-generated strengths/improvements */
-function buildInsights(riskLevel: string, tabSwitches: number, multipleFaces: number) {
-  const strengths: string[] = [];
-  const improvements: string[] = [];
-
-  if (tabSwitches === 0) strengths.push("Maintained full browser focus throughout the session.");
-  if (multipleFaces === 0) strengths.push("No multiple faces detected — single-candidate integrity confirmed.");
-  if (riskLevel === "LOW") strengths.push("Overall risk score is low, indicating honest conduct.");
-
-  if (tabSwitches > 0) improvements.push(`Reduce tab switching — detected ${tabSwitches} times.`);
-  if (multipleFaces > 0) improvements.push(`Avoid having other people in the frame — detected ${multipleFaces} times.`);
-  if (riskLevel === "HIGH" || riskLevel === "CRITICAL") improvements.push("High-risk behaviour patterns detected. Manual review is recommended.");
-
-  if (!strengths.length) strengths.push("Session was completed successfully.");
-  if (!improvements.length) improvements.push("Continue maintaining interview integrity standards.");
-
-  return { strengths, improvements };
+export interface FullAnalyticsData {
+  candidate: string;
+  interview: string;
+  duration: string;
+  date: string;
+  overallScore: number;
+  metrics: {
+    confidence: number;
+    communication: number;
+    technical: number;
+    eyeContact: number;
+    riskScore: number;
+    grade: string;
+  };
+  proctor: {
+    faceMissing: number;
+    multipleFaces: number;
+    tabSwitches: number;
+    networkIssues: number;
+    microphoneIssues: number;
+    fullscreenExits: number;
+  };
+  strengths: string[];
+  improvements: string[];
+  recommendation: "Recommended" | "Not Recommended" | "Needs Improvement";
+  summary: string;
 }
 
 // ---------------------------------------------------------------------------
@@ -76,176 +53,153 @@ function buildInsights(riskLevel: string, tabSwitches: number, multipleFaces: nu
 export default function InterviewAnalyticsClient() {
   const searchParams = useSearchParams();
   const interviewId = searchParams?.get("interviewId") ?? null;
-  const { role } = useAuth();
 
-  const { report, loading, generating, error, notFound, generateReport } =
-    useAnalytics(interviewId, role);
+  const [data, setData] = useState<FullAnalyticsData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // ── Guard: no interviewId ─────────────────────────────────────────────────
+  // Fetch full report from GET /api/interview-analytics/{interviewId}
+  const fetchAnalytics = useCallback(
+    async (isRefresh = false) => {
+      if (!interviewId) return;
+      if (isRefresh) setRefreshing(true);
+      else setLoading(true);
+      setError(null);
 
+      try {
+        const query = isRefresh ? "?refresh=true" : "";
+        const res = await apiClient.get(`/api/interview-analytics/${interviewId}${query}`);
+        if (res.data?.data) {
+          setData(res.data.data as FullAnalyticsData);
+        }
+      } catch {
+        try {
+          await apiClient.post(`/api/analytics/interview/${interviewId}/generate`, {
+            force_refresh: true,
+          });
+          const res = await apiClient.get(`/api/interview-analytics/${interviewId}?refresh=true`);
+          if (res.data?.data) {
+            setData(res.data.data as FullAnalyticsData);
+          }
+        } catch (err) {
+          const msg = err instanceof Error ? err.message : "Failed to load analytics.";
+          setError(msg);
+        }
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [interviewId]
+  );
+
+  useEffect(() => {
+    fetchAnalytics(true);
+    const interval = setInterval(() => {
+      fetchAnalytics(true);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [fetchAnalytics]);
+
+  // ── Guard: No interview ID ────────────────────────────────────────────────
   if (!interviewId) {
     return (
-      <main className="min-h-screen bg-[#0B1120] flex items-center justify-center p-8">
-        <div className="max-w-md w-full rounded-[28px] border border-yellow-500/30 bg-yellow-900/20 p-8 text-center space-y-4">
+      <main className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-8">
+        <div className="max-w-md w-full rounded-[28px] border border-white/10 bg-[#1E293B] p-8 text-center space-y-4 shadow-2xl text-white">
           <div className="text-5xl">⚠️</div>
-          <h2 className="text-xl font-bold text-yellow-200">No Interview ID</h2>
-          <p className="text-yellow-300/80 text-sm">
-            Navigate here with{" "}
-            <code className="text-yellow-100 bg-yellow-900/40 px-1 rounded">
-              ?interviewId=&lt;id&gt;
-            </code>
+          <h2 className="text-xl font-bold text-amber-400">No Interview Session Specified</h2>
+          <p className="text-slate-400 text-sm">
+            Please provide a valid session parameter in the URL query string.
           </p>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2 rounded-2xl bg-[#4096ff] hover:bg-[#60a5fa] px-6 py-3 font-semibold text-white transition"
+          >
+            <ArrowLeft className="h-4 w-4" /> Start New Session
+          </Link>
         </div>
       </main>
     );
   }
 
-  // ── Guard: loading ────────────────────────────────────────────────────────
-
+  // ── Guard: Loading ────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <main className="min-h-screen bg-[#0B1120] flex items-center justify-center">
+      <main className="min-h-screen bg-[#F8FAFC] flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 rounded-full border-4 border-[#4096ff] border-t-transparent animate-spin" />
-          <p className="text-slate-400 text-sm">Loading interview analytics…</p>
+          <p className="text-slate-700 font-semibold text-sm">Processing session analytics report…</p>
         </div>
       </main>
     );
   }
 
-  // ── Guard: error ──────────────────────────────────────────────────────────
-
-  if (error) {
+  // ── Guard: Error ──────────────────────────────────────────────────────────
+  if (error || !data) {
     return (
-      <main className="min-h-screen bg-[#0B1120] flex items-center justify-center p-8">
-        <div className="max-w-md w-full rounded-[28px] border border-red-500/30 bg-red-900/20 p-8 text-center space-y-4">
+      <main className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-8">
+        <div className="max-w-md w-full rounded-[28px] border border-white/10 bg-[#1E293B] p-8 text-center space-y-4 shadow-2xl text-white">
           <div className="text-5xl">❌</div>
-          <h2 className="text-xl font-bold text-red-200">Error Loading Analytics</h2>
-          <p className="text-red-300/80 text-sm">{error}</p>
-        </div>
-      </main>
-    );
-  }
-
-  // ── Guard: report not yet generated ──────────────────────────────────────
-
-  if (notFound || !report) {
-    return (
-      <main className="min-h-screen bg-[#0B1120] flex items-center justify-center p-8">
-        <div className="max-w-md w-full rounded-[28px] border border-slate-500/30 bg-[#111827]/80 p-8 text-center space-y-4">
-          <div className="text-5xl">📊</div>
-          <h2 className="text-xl font-bold text-white">Analytics Not Generated</h2>
-          <p className="text-slate-400 text-sm">
-            No analytics report found for this interview. Generate one to view results.
-          </p>
+          <h2 className="text-xl font-bold text-rose-400">Error Loading Analytics</h2>
+          <p className="text-slate-400 text-sm">{error ?? "Unable to load analytics report."}</p>
           <button
-            onClick={() => generateReport(false)}
-            disabled={generating}
-            className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[#4096ff] py-3 font-semibold text-white transition hover:bg-[#2f86ff] disabled:opacity-50"
+            onClick={() => fetchAnalytics(true)}
+            className="w-full rounded-2xl bg-[#4096ff] hover:bg-[#60a5fa] py-3 font-semibold text-white transition"
           >
-            {generating ? (
-              <>
-                <span className="inline-block w-5 h-5 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                Generating…
-              </>
-            ) : (
-              "Generate Analytics"
-            )}
+            Retry Analytics Generation
           </button>
         </div>
       </main>
     );
   }
 
-  // ── Derive display values from report ────────────────────────────────────
-
-  const confidence = riskToConfidence(report.riskScore);
-  const overallScore = confidence; // Use confidence as a proxy for overall score
-  const { strengths, improvements } = buildInsights(
-    report.riskLevel,
-    report.tabSwitches,
-    report.multipleFaces
-  );
-
   return (
-    <main className="min-h-screen bg-[#0B1120] p-8">
+    <main className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-sans">
       <div className="max-w-7xl mx-auto space-y-8">
-
-        {/* Refresh button */}
-        <div className="flex justify-end">
-          <button
-            onClick={() => generateReport(true)}
-            disabled={generating}
-            className="flex items-center gap-2 rounded-2xl bg-[#4096ff]/20 border border-[#4096ff]/40 px-5 py-2 text-sm font-semibold text-[#4096ff] transition hover:bg-[#4096ff]/30 disabled:opacity-50"
+        {/* Header Bar with Action Controls */}
+        <div className="flex items-center justify-between">
+          <Link
+            href="/"
+            className="flex items-center gap-2 rounded-2xl bg-[#1E293B] border border-white/10 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 shadow-md"
           >
-            {generating ? (
-              <>
-                <span className="inline-block w-4 h-4 rounded-full border-2 border-[#4096ff] border-t-transparent animate-spin" />
-                Refreshing…
-              </>
-            ) : (
-              "↻ Refresh Report"
-            )}
+            <ArrowLeft className="h-4 w-4 text-[#4096ff]" /> Back to Home
+          </Link>
+
+          <button
+            onClick={() => fetchAnalytics(true)}
+            disabled={refreshing}
+            className="flex items-center gap-2 rounded-2xl bg-[#4096ff] px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-[#60a5fa] disabled:opacity-50"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            {refreshing ? "Re-evaluating…" : "Refresh Report"}
           </button>
         </div>
 
         <AnalyticsHeader
-          interview="AI Interview Session"
-          candidate={report.userId}
+          interview={data.interview}
+          candidate={data.candidate}
         />
 
         <SummaryCard
-          candidate={report.userId}
-          interview="AI Interview"
-          duration={formatDuration(report.durationSeconds)}
-          date={formatDate(report.generatedAt)}
+          candidate={data.candidate}
+          interview={data.interview}
+          duration={data.duration}
+          date={data.date}
           status="Completed"
         />
 
-        <OverallScore score={overallScore} />
+        <OverallScore score={data.overallScore} />
 
-        <MetricsGrid
-          metrics={{
-            confidence,
-            communication: confidence,
-            technical: confidence,
-            eyeContact: report.totalEvents === 0 ? 90 : Math.max(40, confidence - 10),
-            riskScore: Math.round(report.riskScore),
-            grade:
-              overallScore >= 90
-                ? "A+"
-                : overallScore >= 80
-                ? "A"
-                : overallScore >= 70
-                ? "B"
-                : overallScore >= 60
-                ? "C"
-                : "D",
-          }}
-        />
+        <MetricsGrid metrics={data.metrics} />
 
-        <ProctorSummary
-          proctor={{
-            faceMissing: report.totalEvents - report.multipleFaces - report.tabSwitches - report.backgroundVoice - report.fullscreenExit,
-            multipleFaces: report.multipleFaces,
-            tabSwitches: report.tabSwitches,
-            networkIssues: 0,
-            microphoneIssues: report.microphoneDisabled,
-            fullscreenExits: report.fullscreenExit,
-          }}
-        />
+        <ProctorSummary proctor={data.proctor} />
 
-        <AIInsights strengths={strengths} improvements={improvements} />
+        <AIInsights strengths={data.strengths} improvements={data.improvements} />
 
         <RecommendationCard
-          status={mapStatus(report.overallStatus)}
-          summary={`Overall risk level: ${report.riskLevel}. ${
-            report.overallStatus === "PASSED"
-              ? "Candidate passed proctoring with no significant issues."
-              : report.overallStatus === "FLAGGED"
-              ? "Critical proctoring violations detected. Manual review strongly recommended."
-              : "Some proctoring events were detected. A review is recommended before final decision."
-          } Risk score: ${report.riskScore.toFixed(1)}/100. Total events: ${report.totalEvents}.`}
+          status={data.recommendation}
+          summary={data.summary}
         />
       </div>
     </main>

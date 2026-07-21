@@ -107,20 +107,23 @@ class Interview:
         """
         now = datetime.now(timezone.utc)
         return {
-            "_id":             ObjectId(),
-            "userId":          ObjectId(user_id),
-            "jobRole":         job_role,
-            "interviewType":   interview_type,
-            "status":          STATUS_IN_PROGRESS,
-            "difficulty":      difficulty,
-            "currentQuestion": 0,
-            "totalQuestions":  total_questions,
-            "startedAt":       now,
-            "endedAt":         None,
-            "durationSeconds": duration_seconds,
-            "resumeId":        ObjectId(resume_id) if resume_id else None,
-            "createdAt":       now,
-            "updatedAt":       now,
+            "_id":                  ObjectId(),
+            "userId":               ObjectId(user_id),
+            "jobRole":              job_role,
+            "interviewType":        interview_type,
+            "status":               STATUS_IN_PROGRESS,
+            "difficulty":           difficulty,
+            "currentQuestion":      0,
+            "currentQuestionIndex": 0,
+            "totalQuestions":       total_questions,
+            "maxQuestions":         total_questions,
+            "startedAt":            now,
+            "endedAt":              None,
+            "durationSeconds":      duration_seconds,
+            "durationMinutes":      max(1, duration_seconds // 60),
+            "resumeId":             ObjectId(resume_id) if resume_id else None,
+            "createdAt":            now,
+            "updatedAt":            now,
         }
 
     # ------------------------------------------------------------------

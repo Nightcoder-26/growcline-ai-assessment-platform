@@ -9,29 +9,40 @@ from typing import Optional, Dict
 from pydantic import BaseModel, Field
 
 
+from typing import Optional, Dict, Any, Union
+
 class ProctoringEventCreate(BaseModel):
-    """
-    Schema for creating a single proctoring event.
-    """
-    interview_id: str = Field(..., description="The parent interview ID.")
-    event_type: str = Field(..., description="The type of proctoring event (e.g. TAB_SWITCH).")
-    client_timestamp: Optional[datetime] = Field(None, description="Optional client-side event timestamp.")
+    interview_id: Optional[str] = None
+    interviewId: Optional[str] = None
+    event_type: Optional[str] = None
+    eventType: Optional[str] = None
+    client_timestamp: Optional[Union[datetime, str]] = None
+    clientTimestamp: Optional[Union[datetime, str]] = None
+
+    def get_interview_id(self) -> str:
+        return self.interview_id or self.interviewId or ""
+
+    def get_event_type(self) -> str:
+        return self.event_type or self.eventType or ""
 
 
 class ProctoringEventBatchItem(BaseModel):
-    """
-    Schema for a single event inside a batch ingestion request.
-    """
-    event_type: str = Field(..., description="The type of proctoring event (e.g. TAB_SWITCH).")
-    client_timestamp: Optional[datetime] = Field(None, description="Optional client-side event timestamp.")
+    event_type: Optional[str] = None
+    eventType: Optional[str] = None
+    client_timestamp: Optional[Union[datetime, str]] = None
+    clientTimestamp: Optional[Union[datetime, str]] = None
+
+    def get_event_type(self) -> str:
+        return self.event_type or self.eventType or ""
 
 
 class ProctoringEventBatchCreate(BaseModel):
-    """
-    Schema for creating a batch of proctoring events.
-    """
-    interview_id: str = Field(..., description="The parent interview ID.")
-    events: list[ProctoringEventBatchItem] = Field(..., description="List of events in the batch.")
+    interview_id: Optional[str] = None
+    interviewId: Optional[str] = None
+    events: list[Dict[str, Any]] = Field(default_factory=list)
+
+    def get_interview_id(self) -> str:
+        return self.interview_id or self.interviewId or ""
 
 
 class ProctoringEventResponse(BaseModel):
