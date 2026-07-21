@@ -82,6 +82,15 @@ from app.routes.interview_routes import router as interview_router
 app.include_router(interview_router)
 # ────────────────────────────────────────────────────────────────────────────
 
+# ── Team B: Unified Interview Session Module ─────────────────────────────────
+# Orchestrates Video Recording + Live Proctoring + Cheating Detection + Analytics
+# into a single session lifecycle (POST /api/interview/start, /end, etc.)
+from app.routes.interview_session_routes import router as interview_session_router
+from app.routes.interview_session_routes import analytics_router as interview_session_analytics_router
+app.include_router(interview_session_router)
+app.include_router(interview_session_analytics_router)
+# ────────────────────────────────────────────────────────────────────────────
+
 
 @app.get("/")
 async def home():

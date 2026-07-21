@@ -42,18 +42,17 @@ class ProctoringController:
 
     @staticmethod
     async def create_event(event_data, current_user: dict) -> JSONResponse:
-        """
-        POST /api/proctoring/events
-
-        Logs a single proctoring event.
-        """
         try:
             user_id = str(current_user["id"])
+            iid = getattr(event_data, "interview_id", None) or getattr(event_data, "interviewId", None)
+            etype = getattr(event_data, "event_type", None) or getattr(event_data, "eventType", None)
+            ts = getattr(event_data, "client_timestamp", None) or getattr(event_data, "clientTimestamp", None)
+
             event = proctoring_service.create_proctoring_event(
-                interview_id=event_data.interview_id,
+                interview_id=iid,
                 user_id=user_id,
-                event_type=event_data.event_type,
-                client_timestamp=event_data.client_timestamp,
+                event_type=etype,
+                client_timestamp=ts,
             )
 
             return JSONResponse(
@@ -64,7 +63,6 @@ class ProctoringController:
                     "data": event,
                 }
             )
-
         except ValueError as error:
             return _handle_value_error(error)
         except Exception as error:
@@ -79,23 +77,28 @@ class ProctoringController:
 
     @staticmethod
     async def create_event_batch(batch_data, current_user: dict) -> JSONResponse:
-        """
-        POST /api/proctoring/events/batch
-
-        Logs a batch of proctoring events.
-        """
         try:
             user_id = str(current_user["id"])
-            events_in = [
-                {
-                    "event_type": item.event_type,
-                    "client_timestamp": item.client_timestamp,
-                }
-                for item in batch_data.events
-            ]
+            iid = getattr(batch_data, "interview_id", None) or getattr(batch_data, "interviewId", None)
+            raw_events = getattr(batch_data, "events", [])
+
+            events_in = []
+            for item in raw_events:
+                if isinstance(item, dict):
+                    etype = item.get("event_type") or item.get("eventType")
+                    ts = item.get("client_timestamp") or item.get("clientTimestamp")
+                else:
+                    etype = getattr(item, "event_type", None) or getattr(item, "eventType", None)
+                    ts = getattr(item, "client_timestamp", None) or getattr(item, "clientTimestamp", None)
+
+                if etype:
+                    events_in.append({
+                        "event_type": etype,
+                        "client_timestamp": ts,
+                    })
 
             inserted_events = proctoring_service.create_proctoring_events_batch(
-                interview_id=batch_data.interview_id,
+                interview_id=iid,
                 user_id=user_id,
                 events=events_in,
             )

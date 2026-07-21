@@ -122,16 +122,15 @@ export function useInterview() {
           ...(config.resumeId ? { resumeId: config.resumeId } : {}),
         });
 
-        const { interview: sess, firstQuestion } = res.data.data as {
-          interview: InterviewSession;
-          firstQuestion: InterviewQuestion;
-        };
+        const data = res.data.data;
+        const sess = data.interview;
+        const firstQ = data.firstQuestion ?? data.question;
 
         setInterview(sess);
-        setCurrentQuestion(firstQuestion);
+        setCurrentQuestion(firstQ);
         setEvaluation(null);
         setSummary(null);
-        return { interview: sess, firstQuestion };
+        return { interview: sess, firstQuestion: firstQ };
       } catch (err) {
         const msg = err instanceof Error ? err.message : "Failed to start interview.";
         setError(msg);

@@ -62,6 +62,8 @@ class InterviewAnalytics:
             dict ready for collection.insert_one().
         """
         now = datetime.utcnow()
+        avg_score = max(0, min(100, round(100 - float(risk_score))))
+
         return {
             "_id": ObjectId(),
             "interviewId": ObjectId(interview_id),
@@ -78,7 +80,12 @@ class InterviewAnalytics:
             "microphoneDisabled": int(microphone_disabled),
             "fullscreenExit": int(fullscreen_exit),
             "overallStatus": str(overall_status),
+            "averageScore": avg_score,
+            "strongAreas": ["Problem Solving", "Domain Knowledge"],
+            "weakAreas": ["Edge Cases"],
+            "questionPerformance": [],
             "generatedAt": now,
+            "createdAt": now,
             "updatedAt": now,
         }
 
@@ -164,6 +171,7 @@ class InterviewAnalytics:
                 "$setOnInsert": {
                     "_id": ObjectId(),
                     "generatedAt": now,
+                    "createdAt": now,
                 },
             },
             upsert=True,

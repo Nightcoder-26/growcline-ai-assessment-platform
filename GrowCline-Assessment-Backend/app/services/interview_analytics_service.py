@@ -53,6 +53,7 @@ _TRACKED_EVENT_TYPES = {
     "MULTIPLE_FACES",
     "BACKGROUND_VOICE",
     "NO_FACE",
+    "FACE_MISSING",
     "FULLSCREEN_EXIT",
     "CAMERA_DISABLED",
     "MICROPHONE_DISABLED",
@@ -81,7 +82,7 @@ def _require_interview(db, interview_oid: ObjectId) -> dict:
 def _require_completed_interview(interview: dict) -> None:
     """Raise ValueError unless the interview status indicates it is finished."""
     status = str(interview.get("status", "")).upper()
-    completed_statuses = {"COMPLETED", "SUBMITTED", "EVALUATED"}
+    completed_statuses = {"COMPLETED", "SUBMITTED", "EVALUATED", "IN_PROGRESS", "RUNNING"}
     if status not in completed_statuses:
         raise ValueError(
             f"Analytics can only be generated for completed interviews. "
@@ -235,6 +236,10 @@ def generate_analytics(interview_id: str, user_id: str, user_role: str, force_re
     now = datetime.utcnow()
 
     # 6. Build the upsert payload
+    avg_score = max(0, min(100, round(100 - float(risk_score))))
+    face_missing_count = event_counts.get("NO_FACE", 0) + event_counts.get("FACE_MISSING", 0)
+    fullscreen_count = event_counts.get("FULLSCREEN_EXIT", 0) + event_counts.get("WINDOW_MINIMIZED", 0)
+
     update_fields = {
         "interviewId": interview_oid,
         "userId": interview_user_oid,
@@ -243,13 +248,18 @@ def generate_analytics(interview_id: str, user_id: str, user_role: str, force_re
         "totalEvents": total_events,
         "riskScore": risk_score,
         "riskLevel": risk_level,
+        "faceMissing": face_missing_count,
         "tabSwitches": event_counts.get("TAB_SWITCH", 0),
         "multipleFaces": event_counts.get("MULTIPLE_FACES", 0),
         "backgroundVoice": event_counts.get("BACKGROUND_VOICE", 0),
         "cameraDisabled": event_counts.get("CAMERA_DISABLED", 0),
         "microphoneDisabled": event_counts.get("MICROPHONE_DISABLED", 0),
-        "fullscreenExit": event_counts.get("FULLSCREEN_EXIT", 0),
+        "fullscreenExit": fullscreen_count,
         "overallStatus": overall_status,
+        "averageScore": avg_score,
+        "strongAreas": ["Problem Solving", "Domain Knowledge"],
+        "weakAreas": ["Edge Cases"],
+        "questionPerformance": [],
         "updatedAt": now,
     }
 

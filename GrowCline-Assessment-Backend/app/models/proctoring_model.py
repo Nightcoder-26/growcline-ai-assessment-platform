@@ -38,14 +38,33 @@ class ProctoringLog:
         Returns:
             dict ready to pass to collection.insert_one().
         """
+        now = datetime.utcnow()
+        # Map eventType to MongoDB collection schema enum
+        event_map = {
+            "NO_FACE": "FACE_MISSING",
+            "CAMERA_DISABLED": "FACE_MISSING",
+            "FULLSCREEN_EXIT": "WINDOW_MINIMIZED",
+            "WINDOW_BLUR": "WINDOW_MINIMIZED",
+            "MICROPHONE_DISABLED": "BACKGROUND_VOICE",
+        }
+        mapped_event_type = event_map.get(event_type, event_type)
+        if mapped_event_type not in ["FACE_MISSING", "MULTIPLE_FACES", "TAB_SWITCH", "WINDOW_MINIMIZED", "BACKGROUND_VOICE"]:
+            mapped_event_type = "TAB_SWITCH"
+
+        valid_severities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        mapped_severity = str(severity).upper()
+        if mapped_severity not in valid_severities:
+            mapped_severity = "LOW"
+
         return {
             "_id": ObjectId(),
             "interviewId": ObjectId(interview_id),
             "userId": ObjectId(user_id),
-            "eventType": event_type,
-            "severity": severity,
-            "timestamp": datetime.utcnow(),
+            "eventType": mapped_event_type,
+            "severity": mapped_severity,
+            "timestamp": now,
             "clientTimestamp": client_timestamp,
+            "createdAt": now,
         }
 
     @staticmethod

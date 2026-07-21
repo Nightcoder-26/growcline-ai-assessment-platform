@@ -22,9 +22,9 @@ export default function SummaryCard({
   status,
 }: SummaryCardProps) {
   return (
-    <section className="mt-8 bg-[#111827] border border-white/10 rounded-[28px] p-8">
-      <h2 className="text-2xl font-semibold text-white mb-6">
-        Interview Summary
+    <section className="bg-[#1E293B] border border-white/10 rounded-[28px] p-8 shadow-2xl">
+      <h2 className="text-2xl font-bold text-white mb-6">
+        Interview Session Summary
       </h2>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
@@ -36,7 +36,7 @@ export default function SummaryCard({
 
         <InfoItem
           icon={<Briefcase size={20} />}
-          label="Interview"
+          label="Job Role"
           value={interview}
         />
 
@@ -56,7 +56,7 @@ export default function SummaryCard({
           icon={<CheckCircle size={20} />}
           label="Status"
           value={status}
-          valueColor="text-green-400"
+          valueColor="text-emerald-400"
         />
       </div>
     </section>
@@ -77,10 +77,10 @@ function InfoItem({
   valueColor = "text-white",
 }: InfoItemProps) {
   return (
-    <div className="bg-[#0B1120] rounded-2xl p-5 border border-white/10">
-      <div className="flex items-center gap-2 text-[#4096FF] mb-3">
+    <div className="bg-[#0F172A] rounded-2xl p-5 border border-white/10">
+      <div className="flex items-center gap-2 text-[#4096ff] mb-3">
         {icon}
-        <span className="text-sm text-slate-400">{label}</span>
+        <span className="text-sm font-medium text-slate-400">{label}</span>
       </div>
 
       <p className={`font-semibold text-lg ${valueColor}`}>
