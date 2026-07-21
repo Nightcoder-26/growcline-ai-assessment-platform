@@ -3,30 +3,63 @@ User Routes Module
 Registers endpoints for User Management CRUD under /api/users.
 """
 
-from flask import Blueprint
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 
 try:
     from controllers.user_controller import UserController
-    from middleware.auth_middleware import token_required
+    from middleware.auth_middleware import get_current_user
 except ImportError:
     from app.controllers.user_controller import UserController
-    from app.middleware.auth_middleware import token_required
+    from app.middleware.auth_middleware import get_current_user
 
-user_bp = Blueprint("users", __name__, url_prefix="/api/users")
+router = APIRouter(prefix="/api/users", tags=["Users"])
+
 
 # 1. Create User (POST /api/users)
-user_bp.route("", methods=["POST"], endpoint="create_user_root")(UserController.create_user)
-user_bp.route("/", methods=["POST"], endpoint="create_user_slash")(UserController.create_user)
+@router.post("")
+@router.post("/")
+async def create_user(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = UserController.create_user(data)
+    return JSONResponse(content=result, status_code=status_code)
+
 
 # 2. Get All Users (GET /api/users)
-user_bp.route("", methods=["GET"], endpoint="get_all_users_root")(UserController.get_all_users)
-user_bp.route("/", methods=["GET"], endpoint="get_all_users_slash")(UserController.get_all_users)
+@router.get("")
+@router.get("/")
+async def get_all_users():
+    result, status_code = UserController.get_all_users()
+    return JSONResponse(content=result, status_code=status_code)
+
 
 # 3. Get User By ID (GET /api/users/<user_id>)
-user_bp.route("/<string:user_id>", methods=["GET"], endpoint="get_user_by_id")(UserController.get_user_by_id)
+@router.get("/{user_id}")
+async def get_user_by_id(user_id: str):
+    result, status_code = UserController.get_user_by_id(user_id)
+    return JSONResponse(content=result, status_code=status_code)
+
 
 # 4. Update User (PUT /api/users/<user_id>) - Protected Route
-user_bp.route("/<string:user_id>", methods=["PUT"], endpoint="update_user")(token_required(UserController.update_user))
+@router.put("/{user_id}")
+async def update_user(user_id: str, request: Request, current_user: dict = Depends(get_current_user)):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = UserController.update_user(user_id, data)
+    return JSONResponse(content=result, status_code=status_code)
+
 
 # 5. Delete User (DELETE /api/users/<user_id>) - Protected Route
-user_bp.route("/<string:user_id>", methods=["DELETE"], endpoint="delete_user")(token_required(UserController.delete_user))
+@router.delete("/{user_id}")
+async def delete_user(user_id: str, current_user: dict = Depends(get_current_user)):
+    result, status_code = UserController.delete_user(user_id)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+# Backward-compatible alias
+user_bp = router

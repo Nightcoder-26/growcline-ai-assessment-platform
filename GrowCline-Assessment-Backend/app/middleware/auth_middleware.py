@@ -1,10 +1,9 @@
 """
 Authentication Middleware Module
-Provides route decorators to protect endpoints with JWT authentication.
+Provides a FastAPI dependency to protect endpoints with JWT authentication.
 """
 
-from functools import wraps
-from flask import request, jsonify, g
+from fastapi import Header, HTTPException
 from bson import ObjectId
 
 try:
@@ -18,51 +17,49 @@ except ImportError:
     from app.config.database import Database
 
 
-def token_required(f):
+async def get_current_user(authorization: str = Header(...)) -> dict:
     """
-    Decorator to protect routes requiring a valid JWT bearer token.
-    Extracts the token from the Authorization header, validates it,
-    and attaches the authenticated user document to flask.g.current_user.
+    FastAPI dependency that validates a Bearer JWT token from the Authorization header.
+    Extracts the token, validates it, and verifies the user still exists in MongoDB.
+    Returns the authenticated user document dict.
+
+    Raises:
+        HTTPException 401: on missing, malformed, invalid, or expired token,
+                           or if the user no longer exists.
     """
-    @wraps(f)
-    def decorated(*args, **kwargs):
-        auth_header = request.headers.get("Authorization", "")
-        if not auth_header or not auth_header.startswith("Bearer "):
-            return jsonify({
-                "success": False,
-                "message": "Unauthorized."
-            }), 401
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized."
+        )
 
-        token = auth_header.split(" ", 1)[1].strip()
-        if not token:
-            return jsonify({
-                "success": False,
-                "message": "Unauthorized."
-            }), 401
+    token = authorization.split(" ", 1)[1].strip()
+    if not token:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized."
+        )
 
-        payload = decode_token(token)
-        if not payload or not payload.get("id"):
-            return jsonify({
-                "success": False,
-                "message": "Unauthorized."
-            }), 401
+    payload = decode_token(token)
+    if not payload or not payload.get("id"):
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized."
+        )
 
-        try:
-            db = Database.get_db()
-            user = db.users.find_one({"_id": ObjectId(payload["id"])})
-            if not user:
-                return jsonify({
-                    "success": False,
-                    "message": "Unauthorized."
-                }), 401
-
-            g.current_user = user
-        except Exception:
-            return jsonify({
-                "success": False,
-                "message": "Unauthorized."
-            }), 401
-
-        return f(*args, **kwargs)
-
-    return decorated
+    try:
+        db = Database.get_db()
+        user = db.users.find_one({"_id": ObjectId(payload["id"])})
+        if not user:
+            raise HTTPException(
+                status_code=401,
+                detail="Unauthorized."
+            )
+        return user
+    except HTTPException:
+        raise
+    except Exception:
+        raise HTTPException(
+            status_code=401,
+            detail="Unauthorized."
+        )

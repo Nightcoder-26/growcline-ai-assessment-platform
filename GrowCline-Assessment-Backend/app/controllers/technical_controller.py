@@ -4,8 +4,8 @@ Handles full CRUD, random assessment generation, and evaluation for technical qu
 """
 
 from datetime import datetime, timezone
-from flask import request, jsonify
 from bson import ObjectId
+from typing import Optional
 
 try:
     from config.database import Database
@@ -19,14 +19,12 @@ class TechnicalController:
     """Technical Question Controller"""
 
     @staticmethod
-    def create_question():
+    def create_question(data: dict) -> tuple[dict, int]:
         """
         POST /api/technical (or /api/technical/questions)
         Creates a new technical question document.
         """
         try:
-            data = request.get_json(silent=True) or {}
-
             question_text = data.get("question")
             technology = data.get("technology", "Python")
             category = data.get("category", technology)
@@ -39,16 +37,16 @@ class TechnicalController:
             tags = data.get("tags", [])
 
             if not question_text or not options or correct_answer is None:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Required fields missing: question, options, and correctAnswer are required."
-                }), 400
+                }, 400
 
             if not isinstance(options, list) or len(options) < 2:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Options must be a list containing at least 2 items."
-                }), 400
+                }, 400
 
             question_doc = TechnicalQuestion.create_question(
                 technology=technology,
@@ -66,21 +64,25 @@ class TechnicalController:
             db = Database.get_db()
             result = db.technical_questions.insert_one(question_doc)
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Question created successfully.",
                 "question_id": str(result.inserted_id),
                 "data": TechnicalQuestion.response(question_doc)
-            }), 201
+            }, 201
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_all_questions():
+    def get_all_questions(
+        technology: Optional[str] = None,
+        category: Optional[str] = None,
+        difficulty: Optional[str] = None,
+    ) -> tuple[dict, int]:
         """
         GET /api/technical (or /api/technical/questions)
         Retrieves all technical questions with optional filtering.
@@ -89,84 +91,79 @@ class TechnicalController:
             db = Database.get_db()
 
             query = {}
-            if request and hasattr(request, "args"):
-                tech = request.args.get("technology")
-                cat = request.args.get("category")
-                diff = request.args.get("difficulty")
-                if tech:
-                    query["technology"] = {"$regex": f"^{tech}$", "$options": "i"}
-                if cat:
-                    query["category"] = {"$regex": f"^{cat}$", "$options": "i"}
-                if diff:
-                    query["difficulty"] = {"$regex": f"^{diff}$", "$options": "i"}
+            if technology:
+                query["technology"] = {"$regex": f"^{technology}$", "$options": "i"}
+            if category:
+                query["category"] = {"$regex": f"^{category}$", "$options": "i"}
+            if difficulty:
+                query["difficulty"] = {"$regex": f"^{difficulty}$", "$options": "i"}
 
             questions_cursor = db.technical_questions.find(query)
             questions = [TechnicalQuestion.response(q) for q in questions_cursor if q]
 
-            return jsonify({
+            return {
                 "success": True,
                 "count": len(questions),
                 "data": questions
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_question_by_id(question_id):
+    def get_question_by_id(question_id: str) -> tuple[dict, int]:
         """
         GET /api/technical/<question_id>
         Retrieves a specific technical question by ID.
         """
         try:
             if not ObjectId.is_valid(question_id):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Invalid question ID format."
-                }), 400
+                }, 400
 
             db = Database.get_db()
             question = db.technical_questions.find_one({"_id": ObjectId(question_id)})
 
             if not question:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Question not found."
-                }), 404
+                }, 404
 
-            return jsonify({
+            return {
                 "success": True,
                 "data": TechnicalQuestion.response(question)
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def update_question(question_id):
+    def update_question(question_id: str, data: dict) -> tuple[dict, int]:
         """
         PUT /api/technical/<question_id>
         Updates an existing technical question.
         """
         try:
             if not ObjectId.is_valid(question_id):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Invalid question ID format."
-                }), 400
+                }, 400
 
-            data = request.get_json(silent=True) or {}
             if not data:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "No update payload provided."
-                }), 400
+                }, 400
 
             update_fields = {}
             if "technology" in data:
@@ -199,66 +196,65 @@ class TechnicalController:
             )
 
             if result.matched_count == 0:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Question not found."
-                }), 404
+                }, 404
 
             updated_doc = db.technical_questions.find_one({"_id": ObjectId(question_id)})
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Question updated successfully.",
                 "data": TechnicalQuestion.response(updated_doc)
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def delete_question(question_id):
+    def delete_question(question_id: str) -> tuple[dict, int]:
         """
         DELETE /api/technical/<question_id>
         Deletes a technical question by ID.
         """
         try:
             if not ObjectId.is_valid(question_id):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Invalid question ID format."
-                }), 400
+                }, 400
 
             db = Database.get_db()
             result = db.technical_questions.delete_one({"_id": ObjectId(question_id)})
 
             if result.deleted_count == 0:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Question not found."
-                }), 404
+                }, 404
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Question deleted successfully."
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def generate_assessment():
+    def generate_assessment(data: dict) -> tuple[dict, int]:
         """
         POST /api/technical/generate
         Randomly samples questions from MongoDB matching technology and difficulty.
         """
         try:
-            data = request.get_json(silent=True) or {}
             num_questions = int(data.get("numberOfQuestions", data.get("total_questions", 10)))
             difficulty = data.get("difficulty")
             technology = data.get("technology")
@@ -292,33 +288,32 @@ class TechnicalController:
                     item.pop("correctAnswer", None)
                     formatted_questions.append(item)
 
-            return jsonify({
+            return {
                 "success": True,
                 "count": len(formatted_questions),
                 "data": formatted_questions
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def submit_assessment():
+    def submit_assessment(data: dict) -> tuple[dict, int]:
         """
         POST /api/technical/submit
         Evaluates candidate answers and returns score & percentage.
         """
         try:
-            data = request.get_json(silent=True) or {}
             answers = data.get("answers", [])
 
             if not isinstance(answers, list):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Answers must be a list of user responses."
-                }), 400
+                }, 400
 
             db = Database.get_db()
             score = 0
@@ -347,14 +342,14 @@ class TechnicalController:
             else:
                 percentage = 0
 
-            return jsonify({
+            return {
                 "success": True,
                 "score": score,
                 "percentage": percentage
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500

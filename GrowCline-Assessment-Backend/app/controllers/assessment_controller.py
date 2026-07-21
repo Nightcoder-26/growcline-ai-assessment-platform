@@ -5,7 +5,7 @@ Handles assessment lifecycle operations (Create, List, Get, Update, Delete, Star
 
 from datetime import datetime, timezone
 from bson import ObjectId
-from flask import request, jsonify
+from typing import Optional
 
 try:
     from config.database import Database
@@ -21,39 +21,37 @@ class AssessmentController:
     """Assessment Controller"""
 
     @staticmethod
-    def create_assessment():
+    def create_assessment(data: dict) -> tuple[dict, int]:
         """
         POST /api/assessment
         Creates an assessment from provided user and question IDs.
         """
         try:
-            payload = request.get_json(silent=True) or {}
-
             # Delegate to AssessmentService which handles full validation & DB insertion
-            res = AssessmentService.create_assessment(payload)
+            res = AssessmentService.create_assessment(data)
 
             if not res.get("success"):
-                return jsonify({
+                return {
                     "success": False,
                     "message": res.get("message", "Failed to create assessment.")
-                }), res.get("status_code", 400)
+                }, res.get("status_code", 400)
 
-            data = res.get("data", {})
-            return jsonify({
+            data_res = res.get("data", {})
+            return {
                 "success": True,
                 "message": "Assessment created successfully.",
-                "assessment_id": data.get("id", data.get("_id")),
-                "data": data
-            }), 201
+                "assessment_id": data_res.get("id", data_res.get("_id")),
+                "data": data_res
+            }, 201
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_all_assessments():
+    def get_all_assessments(user_id: Optional[str] = None) -> tuple[dict, int]:
         """
         GET /api/assessment
         Retrieves all assessments.
@@ -61,27 +59,26 @@ class AssessmentController:
         try:
             db = Database.get_db()
             query = {}
-            user_id = request.args.get("userId", request.args.get("user_id"))
             if user_id and ObjectId.is_valid(user_id):
                 query["userId"] = ObjectId(user_id)
 
             assessments_cursor = db.assessments.find(query).sort("createdAt", -1)
             assessments = [Assessment.response(doc) for doc in assessments_cursor if doc]
 
-            return jsonify({
+            return {
                 "success": True,
                 "count": len(assessments),
                 "data": assessments
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_assessment_by_id(assessment_id):
+    def get_assessment_by_id(assessment_id: str) -> tuple[dict, int]:
         """
         GET /api/assessment/<assessment_id>
         Retrieves an assessment by ID.
@@ -89,36 +86,35 @@ class AssessmentController:
         try:
             res = AssessmentService.get_assessment_by_id(assessment_id)
             if not res.get("success"):
-                return jsonify({
+                return {
                     "success": False,
                     "message": res.get("message", "Assessment not found.")
-                }), res.get("status_code", 404)
+                }, res.get("status_code", 404)
 
-            return jsonify({
+            return {
                 "success": True,
                 "data": res.get("data")
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def update_assessment(assessment_id):
+    def update_assessment(assessment_id: str, data: dict) -> tuple[dict, int]:
         """
         PUT /api/assessment/<assessment_id>
         Updates assessment metadata or question assignments.
         """
         try:
             if not ObjectId.is_valid(assessment_id):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Invalid assessment ID format."
-                }), 400
+                }, 400
 
-            data = request.get_json(silent=True) or {}
             db = Database.get_db()
 
             update_fields = {}
@@ -137,60 +133,60 @@ class AssessmentController:
             )
 
             if result.matched_count == 0:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Assessment not found."
-                }), 404
+                }, 404
 
             doc = db.assessments.find_one({"_id": ObjectId(assessment_id)})
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Assessment updated successfully.",
                 "data": Assessment.response(doc)
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def delete_assessment(assessment_id):
+    def delete_assessment(assessment_id: str) -> tuple[dict, int]:
         """
         DELETE /api/assessment/<assessment_id>
         Deletes an assessment by ID.
         """
         try:
             if not ObjectId.is_valid(assessment_id):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Invalid assessment ID format."
-                }), 400
+                }, 400
 
             db = Database.get_db()
             result = db.assessments.delete_one({"_id": ObjectId(assessment_id)})
 
             if result.deleted_count == 0:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Assessment not found."
-                }), 404
+                }, 404
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Assessment deleted successfully."
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def start_assessment(assessment_id):
+    def start_assessment(assessment_id: str) -> tuple[dict, int]:
         """
         POST /api/assessment/<assessment_id>/start
         Starts an assessment test session.
@@ -198,47 +194,46 @@ class AssessmentController:
         try:
             res = AssessmentService.start_assessment(assessment_id)
             if not res.get("success"):
-                return jsonify({
+                return {
                     "success": False,
                     "message": res.get("message", "Failed to start assessment.")
-                }), res.get("status_code", 400)
+                }, res.get("status_code", 400)
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": res.get("message", "Assessment started successfully."),
                 "data": res.get("data")
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def submit_assessment(assessment_id):
+    def submit_assessment(assessment_id: str, data: dict) -> tuple[dict, int]:
         """
         POST /api/assessment/<assessment_id>/submit
         Submits candidate answers for scoring.
         """
         try:
-            payload = request.get_json(silent=True) or {}
-            res = AssessmentService.submit_assessment(assessment_id, payload)
+            res = AssessmentService.submit_assessment(assessment_id, data)
 
             if not res.get("success"):
-                return jsonify({
+                return {
                     "success": False,
                     "message": res.get("message", "Failed to submit assessment.")
-                }), res.get("status_code", 400)
+                }, res.get("status_code", 400)
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": res.get("message", "Assessment submitted successfully."),
                 "data": res.get("data")
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500

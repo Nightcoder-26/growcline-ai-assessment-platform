@@ -1,27 +1,84 @@
-from flask import Blueprint
+"""
+Result Routes Module
+Registers endpoints for Assessment Results under /api/results.
+"""
+
+from typing import Optional
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import JSONResponse
 
 try:
     from controllers.result_controller import ResultController
 except ImportError:
     from app.controllers.result_controller import ResultController
 
-result_bp = Blueprint("result", __name__, url_prefix="/api/results")
+router = APIRouter(prefix="/api/results", tags=["Results"])
 
-# Calculate Assessment Result
-result_bp.route("/calculate", methods=["POST"])(ResultController.calculate_result)
-result_bp.route("/", methods=["POST"])(ResultController.save_result)
 
-# Get All Results
-result_bp.route("/", methods=["GET"])(ResultController.get_all_results)
+# Calculate / Save Assessment Result (POST /)
+@router.post("/calculate")
+async def calculate_result(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = ResultController.calculate_result(data)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+@router.post("")
+@router.post("/")
+async def save_result(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = ResultController.save_result(data)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+# Get All Results (GET /)
+@router.get("")
+@router.get("/")
+async def get_all_results(
+    userId: Optional[str] = Query(None),
+    user_id: Optional[str] = Query(None),
+    assessmentId: Optional[str] = Query(None),
+    assessment_id: Optional[str] = Query(None),
+):
+    uid = userId or user_id
+    aid = assessmentId or assessment_id
+    result, status_code = ResultController.get_all_results(user_id=uid, assessment_id=aid)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+# Get Candidate Result History (must be before /{result_id} to avoid conflict)
+@router.get("/candidate/{user_id}")
+async def get_candidate_results(user_id: str):
+    result, status_code = ResultController.get_candidate_results(user_id)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+# Get Assessment Result (must be before /{result_id} to avoid conflict)
+@router.get("/assessment/{assessment_id}")
+async def get_assessment_result(assessment_id: str):
+    result, status_code = ResultController.get_assessment_result(assessment_id)
+    return JSONResponse(content=result, status_code=status_code)
+
 
 # Get Result By ID
-result_bp.route("/<string:result_id>", methods=["GET"])(ResultController.get_result_by_id)
+@router.get("/{result_id}")
+async def get_result_by_id(result_id: str):
+    result, status_code = ResultController.get_result_by_id(result_id)
+    return JSONResponse(content=result, status_code=status_code)
 
-# Get Candidate Result History
-result_bp.route("/candidate/<string:user_id>", methods=["GET"])(ResultController.get_candidate_results)
-
-# Get Assessment Result
-result_bp.route("/assessment/<string:assessment_id>", methods=["GET"])(ResultController.get_assessment_result)
 
 # Delete Result
-result_bp.route("/<string:result_id>", methods=["DELETE"])(ResultController.delete_result)
+@router.delete("/{result_id}")
+async def delete_result(result_id: str):
+    result, status_code = ResultController.delete_result(result_id)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+# Backward-compatible alias
+result_bp = router
