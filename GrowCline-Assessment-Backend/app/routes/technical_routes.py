@@ -4,88 +4,72 @@ Registers endpoints for Technical Assessment CRUD, test generation, and submissi
 """
 
 from typing import Optional
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 try:
     from controllers.technical_controller import TechnicalController
+    from schemas.request_models import (
+        TechnicalQuestionRequest, TechnicalUpdateRequest,
+        TechnicalGenerateRequest, TechnicalSubmitRequest
+    )
 except ImportError:
     from app.controllers.technical_controller import TechnicalController
+    from app.schemas.request_models import (
+        TechnicalQuestionRequest, TechnicalUpdateRequest,
+        TechnicalGenerateRequest, TechnicalSubmitRequest
+    )
 
 router = APIRouter(prefix="/api/technical", tags=["Technical"])
 
 
-# Root CRUD routes
-@router.post("")
-@router.post("/")
-@router.post("/questions")
-async def create_question(request: Request):
-    try:
-        data = await request.json()
-    except Exception:
-        data = {}
-    result, status_code = TechnicalController.create_question(data)
+@router.post("", summary="Create a technical question")
+@router.post("/", include_in_schema=False)
+@router.post("/questions", include_in_schema=False)
+async def create_question(body: TechnicalQuestionRequest):
+    result, status_code = TechnicalController.create_question(body.model_dump())
     return JSONResponse(content=result, status_code=status_code)
 
 
-@router.get("")
-@router.get("/")
-@router.get("/questions")
+@router.get("", summary="Get all technical questions")
+@router.get("/", include_in_schema=False)
+@router.get("/questions", include_in_schema=False)
 async def get_all_questions(
-    technology: Optional[str] = Query(None),
-    category: Optional[str] = Query(None),
-    difficulty: Optional[str] = Query(None),
+    technology: Optional[str] = Query(None, description="Filter by technology (e.g. Python)"),
+    category: Optional[str] = Query(None, description="Filter by category"),
+    difficulty: Optional[str] = Query(None, description="Filter by difficulty: Easy, Medium, Hard"),
 ):
     result, status_code = TechnicalController.get_all_questions(
-        technology=technology,
-        category=category,
-        difficulty=difficulty,
+        technology=technology, category=category, difficulty=difficulty
     )
     return JSONResponse(content=result, status_code=status_code)
 
 
-# Assessment Generation & Submission (must be before /{question_id} to avoid conflict)
-@router.post("/generate")
-async def generate_assessment(request: Request):
-    try:
-        data = await request.json()
-    except Exception:
-        data = {}
-    result, status_code = TechnicalController.generate_assessment(data)
+@router.post("/generate", summary="Generate a random technical assessment")
+async def generate_assessment(body: TechnicalGenerateRequest):
+    result, status_code = TechnicalController.generate_assessment(body.model_dump())
     return JSONResponse(content=result, status_code=status_code)
 
 
-@router.post("/submit")
-async def submit_assessment(request: Request):
-    try:
-        data = await request.json()
-    except Exception:
-        data = {}
-    result, status_code = TechnicalController.submit_assessment(data)
+@router.post("/submit", summary="Submit technical assessment answers")
+async def submit_assessment(body: TechnicalSubmitRequest):
+    result, status_code = TechnicalController.submit_assessment(body.model_dump())
     return JSONResponse(content=result, status_code=status_code)
 
 
-# Single Question by ID
-@router.get("/{question_id}")
-@router.get("/questions/{question_id}")
+@router.get("/{question_id}", summary="Get technical question by ID")
 async def get_question_by_id(question_id: str):
     result, status_code = TechnicalController.get_question_by_id(question_id)
     return JSONResponse(content=result, status_code=status_code)
 
 
-@router.put("/{question_id}")
-@router.put("/questions/{question_id}")
-async def update_question(question_id: str, request: Request):
-    try:
-        data = await request.json()
-    except Exception:
-        data = {}
-    result, status_code = TechnicalController.update_question(question_id, data)
+@router.put("/{question_id}", summary="Update technical question by ID")
+async def update_question(question_id: str, body: TechnicalUpdateRequest):
+    result, status_code = TechnicalController.update_question(question_id, body.model_dump(exclude_none=True))
     return JSONResponse(content=result, status_code=status_code)
 
 
-@router.delete("/{question_id}")
-@router.delete("/questions/{question_id}")
+@router.delete("/{question_id}", summary="Delete technical question by ID")
 async def delete_question(question_id: str):
     result, status_code = TechnicalController.delete_question(question_id)
     return JSONResponse(content=result, status_code=status_code)
