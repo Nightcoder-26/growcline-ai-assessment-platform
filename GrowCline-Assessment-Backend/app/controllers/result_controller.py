@@ -3,8 +3,9 @@ Result Controller
 Handles saving, retrieving, updating, and evaluating assessment results and leaderboards.
 """
 
-from flask import request, jsonify
 from bson import ObjectId
+from typing import Optional
+
 try:
     from config.database import Database
 except ImportError:
@@ -20,25 +21,24 @@ class ResultController:
     """Assessment Result Controller"""
 
     @staticmethod
-    def save_result():
+    def save_result(data: dict) -> tuple[dict, int]:
         try:
             db = Database.get_db()
-            data = request.get_json()
 
             if not data:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "No result data provided."
-                }), 400
+                }, 400
 
             assessment_id = data.get("assessmentId", data.get("assessment_id"))
             user_id = data.get("userId", data.get("user_id"))
 
             if not assessment_id or not user_id:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "assessmentId and userId are required."
-                }), 400
+                }, 400
 
             aptitude_answers = data.get("aptitudeAnswers", data.get("aptitude_answers", []))
             technical_answers = data.get("technicalAnswers", data.get("technical_answers", []))
@@ -96,42 +96,42 @@ class ResultController:
             except Exception:
                 pass
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Assessment result saved successfully.",
                 "result_id": str(res.inserted_id)
-            }), 201
+            }, 201
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def create_result():
+    def create_result(data: dict) -> tuple[dict, int]:
         """Alias for save_result to support multiple route conventions."""
-        return ResultController.save_result()
+        return ResultController.save_result(data)
 
     @staticmethod
-    def get_results():
+    def get_results(
+        user_id: Optional[str] = None,
+        assessment_id: Optional[str] = None,
+    ) -> tuple[dict, int]:
         try:
             db = Database.get_db()
 
             query = {}
-            if request and hasattr(request, "args"):
-                user_id = request.args.get("userId") or request.args.get("user_id")
-                assessment_id = request.args.get("assessmentId") or request.args.get("assessment_id")
-                if user_id:
-                    try:
-                        query["$or"] = [{"userId": ObjectId(user_id)}, {"userId": str(user_id)}, {"user_id": str(user_id)}]
-                    except Exception:
-                        query["userId"] = str(user_id)
-                if assessment_id:
-                    try:
-                        query["$or"] = [{"assessmentId": ObjectId(assessment_id)}, {"assessmentId": str(assessment_id)}, {"assessment_id": str(assessment_id)}]
-                    except Exception:
-                        query["assessmentId"] = str(assessment_id)
+            if user_id:
+                try:
+                    query["$or"] = [{"userId": ObjectId(user_id)}, {"userId": str(user_id)}, {"user_id": str(user_id)}]
+                except Exception:
+                    query["userId"] = str(user_id)
+            if assessment_id:
+                try:
+                    query["$or"] = [{"assessmentId": ObjectId(assessment_id)}, {"assessmentId": str(assessment_id)}, {"assessment_id": str(assessment_id)}]
+                except Exception:
+                    query["assessmentId"] = str(assessment_id)
 
             results = list(db.assessment_results.find(query).sort("createdAt", -1))
 
@@ -148,20 +148,20 @@ class ResultController:
                     formatted = res
                 formatted_results.append(formatted)
 
-            return jsonify({
+            return {
                 "success": True,
                 "count": len(formatted_results),
                 "data": formatted_results
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_result(result_id):
+    def get_result(result_id: str) -> tuple[dict, int]:
         try:
             db = Database.get_db()
 
@@ -170,10 +170,10 @@ class ResultController:
             })
 
             if not result:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Assessment result not found."
-                }), 404
+                }, 404
 
             try:
                 formatted = AssessmentResult.response(result)
@@ -185,19 +185,19 @@ class ResultController:
                     result["userId"] = str(result["userId"])
                 formatted = result
 
-            return jsonify({
+            return {
                 "success": True,
                 "data": formatted
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_user_results(user_id):
+    def get_user_results(user_id: str) -> tuple[dict, int]:
         try:
             db = Database.get_db()
 
@@ -221,20 +221,20 @@ class ResultController:
                     formatted = res
                 formatted_results.append(formatted)
 
-            return jsonify({
+            return {
                 "success": True,
                 "count": len(formatted_results),
                 "data": formatted_results
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_assessment_results(assessment_id):
+    def get_assessment_results(assessment_id: str) -> tuple[dict, int]:
         try:
             db = Database.get_db()
 
@@ -258,62 +258,57 @@ class ResultController:
                     formatted = res
                 formatted_results.append(formatted)
 
-            return jsonify({
+            return {
                 "success": True,
                 "count": len(formatted_results),
                 "data": formatted_results
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def update_result(result_id):
+    def update_result(result_id: str, data: dict) -> tuple[dict, int]:
         try:
             db = Database.get_db()
-            data = request.get_json()
 
             if not data:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "No update data provided."
-                }), 400
+                }, 400
 
             update_fields = dict(data)
             update_fields.pop("_id", None)
             update_fields.pop("id", None)
 
             result = db.assessment_results.update_one(
-                {
-                    "_id": ObjectId(result_id)
-                },
-                {
-                    "$set": update_fields
-                }
+                {"_id": ObjectId(result_id)},
+                {"$set": update_fields}
             )
 
             if result.matched_count == 0:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Assessment result not found."
-                }), 404
+                }, 404
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Assessment result updated successfully."
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def delete_result(result_id):
+    def delete_result(result_id: str) -> tuple[dict, int]:
         try:
             db = Database.get_db()
 
@@ -322,24 +317,24 @@ class ResultController:
             })
 
             if result.deleted_count == 0:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Assessment result not found."
-                }), 404
+                }, 404
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Assessment result deleted successfully."
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_leaderboard(assessment_id=None):
+    def get_leaderboard(assessment_id: Optional[str] = None, limit: int = 10) -> tuple[dict, int]:
         try:
             db = Database.get_db()
 
@@ -349,15 +344,6 @@ class ResultController:
                     query["$or"] = [{"assessmentId": ObjectId(assessment_id)}, {"assessmentId": str(assessment_id)}, {"assessment_id": str(assessment_id)}]
                 except Exception:
                     query["assessmentId"] = str(assessment_id)
-            elif request and hasattr(request, "args"):
-                arg_id = request.args.get("assessmentId") or request.args.get("assessment_id")
-                if arg_id:
-                    try:
-                        query["$or"] = [{"assessmentId": ObjectId(arg_id)}, {"assessmentId": str(arg_id)}, {"assessment_id": str(arg_id)}]
-                    except Exception:
-                        query["assessmentId"] = str(arg_id)
-
-            limit = int(request.args.get("limit", 10)) if request and hasattr(request, "args") else 10
 
             results = list(db.assessment_results.find(query).sort([("totalScore", -1), ("percentage", -1), ("totalTime", 1)]).limit(limit))
 
@@ -384,34 +370,35 @@ class ResultController:
                     "submitted_at": res.get("createdAt", res.get("submittedAt", res.get("submitted_at", "")))
                 })
 
-            return jsonify({
+            return {
                 "success": True,
                 "count": len(leaderboard),
                 "data": leaderboard
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
+
+    # Alias methods matching route names
+    @staticmethod
+    def calculate_result(data: dict) -> tuple[dict, int]:
+        return ResultController.save_result(data)
 
     @staticmethod
-    def calculate_result():
-        return ResultController.save_result()
+    def get_all_results(user_id: Optional[str] = None, assessment_id: Optional[str] = None) -> tuple[dict, int]:
+        return ResultController.get_results(user_id=user_id, assessment_id=assessment_id)
 
     @staticmethod
-    def get_all_results():
-        return ResultController.get_results()
-
-    @staticmethod
-    def get_result_by_id(result_id):
+    def get_result_by_id(result_id: str) -> tuple[dict, int]:
         return ResultController.get_result(result_id)
 
     @staticmethod
-    def get_candidate_results(user_id):
+    def get_candidate_results(user_id: str) -> tuple[dict, int]:
         return ResultController.get_user_results(user_id)
 
     @staticmethod
-    def get_assessment_result(assessment_id):
+    def get_assessment_result(assessment_id: str) -> tuple[dict, int]:
         return ResultController.get_assessment_results(assessment_id)

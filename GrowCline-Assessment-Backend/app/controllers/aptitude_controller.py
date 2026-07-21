@@ -4,8 +4,8 @@ Handles full CRUD, random test generation, and evaluation for aptitude questions
 """
 
 from datetime import datetime, timezone
-from flask import request, jsonify
 from bson import ObjectId
+from typing import Optional
 
 try:
     from config.database import Database
@@ -19,14 +19,12 @@ class AptitudeController:
     """Aptitude Question Controller"""
 
     @staticmethod
-    def create_question():
+    def create_question(data: dict) -> tuple[dict, int]:
         """
         POST /api/aptitude (or /api/aptitude/questions)
         Creates a new aptitude question document.
         """
         try:
-            data = request.get_json(silent=True) or {}
-
             question_text = data.get("question")
             category = data.get("category")
             difficulty = data.get("difficulty")
@@ -38,16 +36,16 @@ class AptitudeController:
             tags = data.get("tags", [])
 
             if not question_text or not category or not difficulty or not options or correct_answer is None:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Required fields missing: question, category, difficulty, options, and correctAnswer are required."
-                }), 400
+                }, 400
 
             if not isinstance(options, list) or len(options) < 2:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Options must be a list containing at least 2 items."
-                }), 400
+                }, 400
 
             question_doc = AptitudeQuestion.create_question(
                 question=question_text,
@@ -64,21 +62,21 @@ class AptitudeController:
             db = Database.get_db()
             result = db.aptitude_questions.insert_one(question_doc)
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Question created successfully.",
                 "question_id": str(result.inserted_id),
                 "data": AptitudeQuestion.response(question_doc)
-            }), 201
+            }, 201
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_all_questions():
+    def get_all_questions() -> tuple[dict, int]:
         """
         GET /api/aptitude (or /api/aptitude/questions)
         Retrieves all aptitude questions.
@@ -89,70 +87,69 @@ class AptitudeController:
 
             questions = [AptitudeQuestion.response(q) for q in questions_cursor if q]
 
-            return jsonify({
+            return {
                 "success": True,
                 "count": len(questions),
                 "data": questions
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_question_by_id(question_id):
+    def get_question_by_id(question_id: str) -> tuple[dict, int]:
         """
         GET /api/aptitude/<question_id>
         Retrieves a specific aptitude question by its ID.
         """
         try:
             if not ObjectId.is_valid(question_id):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Invalid question ID format."
-                }), 400
+                }, 400
 
             db = Database.get_db()
             question = db.aptitude_questions.find_one({"_id": ObjectId(question_id)})
 
             if not question:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Question not found."
-                }), 404
+                }, 404
 
-            return jsonify({
+            return {
                 "success": True,
                 "data": AptitudeQuestion.response(question)
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def update_question(question_id):
+    def update_question(question_id: str, data: dict) -> tuple[dict, int]:
         """
         PUT /api/aptitude/<question_id>
         Updates an existing aptitude question.
         """
         try:
             if not ObjectId.is_valid(question_id):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Invalid question ID format."
-                }), 400
+                }, 400
 
-            data = request.get_json(silent=True) or {}
             if not data:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "No update payload provided."
-                }), 400
+                }, 400
 
             update_fields = {}
             if "question" in data:
@@ -183,66 +180,65 @@ class AptitudeController:
             )
 
             if result.matched_count == 0:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Question not found."
-                }), 404
+                }, 404
 
             updated_doc = db.aptitude_questions.find_one({"_id": ObjectId(question_id)})
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Question updated successfully.",
                 "data": AptitudeQuestion.response(updated_doc)
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def delete_question(question_id):
+    def delete_question(question_id: str) -> tuple[dict, int]:
         """
         DELETE /api/aptitude/<question_id>
         Deletes an aptitude question by ID.
         """
         try:
             if not ObjectId.is_valid(question_id):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Invalid question ID format."
-                }), 400
+                }, 400
 
             db = Database.get_db()
             result = db.aptitude_questions.delete_one({"_id": ObjectId(question_id)})
 
             if result.deleted_count == 0:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Question not found."
-                }), 404
+                }, 404
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Question deleted successfully."
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def generate_assessment():
+    def generate_assessment(data: dict) -> tuple[dict, int]:
         """
         POST /api/aptitude/generate
         Randomly samples questions from MongoDB based on difficulty and size.
         """
         try:
-            data = request.get_json(silent=True) or {}
             num_questions = int(data.get("numberOfQuestions", data.get("total_questions", 10)))
             difficulty = data.get("difficulty")
 
@@ -273,33 +269,32 @@ class AptitudeController:
                     item.pop("correctAnswer", None)
                     formatted_questions.append(item)
 
-            return jsonify({
+            return {
                 "success": True,
                 "count": len(formatted_questions),
                 "data": formatted_questions
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def submit_assessment():
+    def submit_assessment(data: dict) -> tuple[dict, int]:
         """
         POST /api/aptitude/submit
         Evaluates candidate answers and calculates score & percentage.
         """
         try:
-            data = request.get_json(silent=True) or {}
             answers = data.get("answers", [])
 
             if not isinstance(answers, list):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Answers must be a list of user responses."
-                }), 400
+                }, 400
 
             db = Database.get_db()
             score = 0
@@ -328,14 +323,14 @@ class AptitudeController:
             else:
                 percentage = 0
 
-            return jsonify({
+            return {
                 "success": True,
                 "score": score,
                 "percentage": percentage
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500

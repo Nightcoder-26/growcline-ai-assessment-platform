@@ -33,33 +33,29 @@ async def http_exception_handler(request, exc: HTTPException):
     )
 
 
-# Register Route Blueprints (Teammates' Flask blueprints - dummy method to avoid crashes)
-app.register_blueprint = lambda *args, **kwargs: None
-
+# ── Team A: Migrated Flask → FastAPI Routers ────────────────────────────────
 from app.routes import (
-    auth_bp,
-    technical_bp,
-    result_bp,
-    analytics_bp,
-    aptitude_bp,
-    assessment_bp,
-    assessments_plural_bp,
-    coding_bp,
-    user_bp,
+    auth_router,
+    technical_router,
+    result_router,
+    analytics_router,
+    aptitude_router,
+    assessment_router,
+    assessment_plural_router,
+    coding_router,
+    user_router,
 )
 
-app.register_blueprint(auth_bp)
-app.register_blueprint(technical_bp, url_prefix="/api/technical")
-app.register_blueprint(result_bp)
-app.register_blueprint(analytics_bp, url_prefix="/api/analytics")
-app.register_blueprint(aptitude_bp, url_prefix="/api/aptitude")
-app.register_blueprint(assessment_bp, url_prefix="/api/assessment")
-app.register_blueprint(assessments_plural_bp, url_prefix="/api/assessments")
-app.register_blueprint(coding_bp, url_prefix="/api/coding")
-app.register_blueprint(
-    user_bp,
-    url_prefix="/api/users"
-)
+app.include_router(auth_router)
+app.include_router(technical_router)
+app.include_router(result_router)
+app.include_router(analytics_router)
+app.include_router(aptitude_router)
+app.include_router(assessment_router)
+app.include_router(assessment_plural_router)
+app.include_router(coding_router)
+app.include_router(user_router)
+# ────────────────────────────────────────────────────────────────────────────
 
 # ── Team B: Video Recording Module ──────────────────────────────────────────
 from app.routes.recording_routes import router as recording_router

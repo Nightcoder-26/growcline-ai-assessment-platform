@@ -4,8 +4,8 @@ Handles full CRUD, random coding challenge generation, and evaluation for coding
 """
 
 from datetime import datetime, timezone
-from flask import request, jsonify
 from bson import ObjectId
+from typing import Optional
 
 try:
     from config.database import Database
@@ -19,14 +19,12 @@ class CodingController:
     """Coding Question Controller"""
 
     @staticmethod
-    def create_question():
+    def create_question(data: dict) -> tuple[dict, int]:
         """
         POST /api/coding (or /api/coding/questions)
         Creates a new coding question document.
         """
         try:
-            data = request.get_json(silent=True) or {}
-
             title = data.get("title", data.get("question"))
             problem_statement = data.get("problemStatement", data.get("problem_statement", data.get("description")))
             programming_language = data.get("programmingLanguage", data.get("programming_language", "Python"))
@@ -43,10 +41,10 @@ class CodingController:
             tags = data.get("tags", [])
 
             if not title or not problem_statement:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Required fields missing: title and problemStatement are required."
-                }), 400
+                }, 400
 
             question_doc = CodingQuestion.create_question(
                 title=title,
@@ -68,21 +66,24 @@ class CodingController:
             db = Database.get_db()
             result = db.coding_questions.insert_one(question_doc)
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Question created successfully.",
                 "question_id": str(result.inserted_id),
                 "data": CodingQuestion.response(question_doc)
-            }), 201
+            }, 201
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_all_questions():
+    def get_all_questions(
+        programmingLanguage: Optional[str] = None,
+        difficulty: Optional[str] = None,
+    ) -> tuple[dict, int]:
         """
         GET /api/coding (or /api/coding/questions)
         Retrieves all coding questions.
@@ -91,81 +92,77 @@ class CodingController:
             db = Database.get_db()
 
             query = {}
-            if request and hasattr(request, "args"):
-                lang = request.args.get("programmingLanguage")
-                diff = request.args.get("difficulty")
-                if lang:
-                    query["programmingLanguage"] = {"$regex": f"^{lang}$", "$options": "i"}
-                if diff:
-                    query["difficulty"] = {"$regex": f"^{diff}$", "$options": "i"}
+            if programmingLanguage:
+                query["programmingLanguage"] = {"$regex": f"^{programmingLanguage}$", "$options": "i"}
+            if difficulty:
+                query["difficulty"] = {"$regex": f"^{difficulty}$", "$options": "i"}
 
             questions_cursor = db.coding_questions.find(query)
             questions = [CodingQuestion.response(q) for q in questions_cursor if q]
 
-            return jsonify({
+            return {
                 "success": True,
                 "count": len(questions),
                 "data": questions
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def get_question_by_id(question_id):
+    def get_question_by_id(question_id: str) -> tuple[dict, int]:
         """
         GET /api/coding/<question_id>
         Retrieves a specific coding question by ID.
         """
         try:
             if not ObjectId.is_valid(question_id):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Invalid question ID format."
-                }), 400
+                }, 400
 
             db = Database.get_db()
             question = db.coding_questions.find_one({"_id": ObjectId(question_id)})
 
             if not question:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Question not found."
-                }), 404
+                }, 404
 
-            return jsonify({
+            return {
                 "success": True,
                 "data": CodingQuestion.response(question)
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def update_question(question_id):
+    def update_question(question_id: str, data: dict) -> tuple[dict, int]:
         """
         PUT /api/coding/<question_id>
         Updates an existing coding question.
         """
         try:
             if not ObjectId.is_valid(question_id):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Invalid question ID format."
-                }), 400
+                }, 400
 
-            data = request.get_json(silent=True) or {}
             if not data:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "No update payload provided."
-                }), 400
+                }, 400
 
             update_fields = {}
             if "title" in data:
@@ -205,66 +202,65 @@ class CodingController:
             )
 
             if result.matched_count == 0:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Question not found."
-                }), 404
+                }, 404
 
             updated_doc = db.coding_questions.find_one({"_id": ObjectId(question_id)})
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Question updated successfully.",
                 "data": CodingQuestion.response(updated_doc)
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def delete_question(question_id):
+    def delete_question(question_id: str) -> tuple[dict, int]:
         """
         DELETE /api/coding/<question_id>
         Deletes a coding question by ID.
         """
         try:
             if not ObjectId.is_valid(question_id):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Invalid question ID format."
-                }), 400
+                }, 400
 
             db = Database.get_db()
             result = db.coding_questions.delete_one({"_id": ObjectId(question_id)})
 
             if result.deleted_count == 0:
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Question not found."
-                }), 404
+                }, 404
 
-            return jsonify({
+            return {
                 "success": True,
                 "message": "Question deleted successfully."
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def generate_assessment():
+    def generate_assessment(data: dict) -> tuple[dict, int]:
         """
         POST /api/coding/generate
         Randomly samples coding challenges from MongoDB.
         """
         try:
-            data = request.get_json(silent=True) or {}
             num_questions = int(data.get("numberOfQuestions", data.get("total_questions", 3)))
             difficulty = data.get("difficulty")
 
@@ -294,33 +290,32 @@ class CodingController:
                     item.pop("hiddenTestCases", None)
                     formatted_questions.append(item)
 
-            return jsonify({
+            return {
                 "success": True,
                 "count": len(formatted_questions),
                 "data": formatted_questions
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500
 
     @staticmethod
-    def submit_assessment():
+    def submit_assessment(data: dict) -> tuple[dict, int]:
         """
         POST /api/coding/submit
         Evaluates candidate coding answers.
         """
         try:
-            data = request.get_json(silent=True) or {}
             answers = data.get("answers", data.get("submissions", []))
 
             if not isinstance(answers, list):
-                return jsonify({
+                return {
                     "success": False,
                     "message": "Answers must be a list of user code responses."
-                }), 400
+                }, 400
 
             db = Database.get_db()
             score = 0
@@ -346,14 +341,14 @@ class CodingController:
             else:
                 percentage = 0
 
-            return jsonify({
+            return {
                 "success": True,
                 "score": score,
                 "percentage": percentage
-            }), 200
+            }, 200
 
         except Exception as error:
-            return jsonify({
+            return {
                 "success": False,
                 "message": str(error)
-            }), 500
+            }, 500

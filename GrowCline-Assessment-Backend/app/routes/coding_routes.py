@@ -3,33 +3,91 @@ Coding Routes Module
 Registers endpoints for Coding Assessment CRUD, test generation, and submission.
 """
 
-from flask import Blueprint
+from typing import Optional
+from fastapi import APIRouter, Query, Request
+from fastapi.responses import JSONResponse
 
 try:
     from controllers.coding_controller import CodingController
 except ImportError:
     from app.controllers.coding_controller import CodingController
 
-coding_bp = Blueprint("coding", __name__, url_prefix="/api/coding")
+router = APIRouter(prefix="/api/coding", tags=["Coding"])
 
-# Root /api/coding CRUD routes (must return 201 Created directly on POST /api/coding per prompt requirements)
-coding_bp.route("", methods=["POST"], endpoint="create_coding_question_root")(CodingController.create_question)
-coding_bp.route("/", methods=["POST"], endpoint="create_coding_question_root_slash")(CodingController.create_question)
-coding_bp.route("", methods=["GET"], endpoint="get_all_coding_questions_root")(CodingController.get_all_questions)
-coding_bp.route("/", methods=["GET"], endpoint="get_all_coding_questions_root_slash")(CodingController.get_all_questions)
 
-# Single Question by ID under /api/coding/<question_id>
-coding_bp.route("/<string:question_id>", methods=["GET"], endpoint="get_coding_question_by_id")(CodingController.get_question_by_id)
-coding_bp.route("/<string:question_id>", methods=["PUT"], endpoint="update_coding_question")(CodingController.update_question)
-coding_bp.route("/<string:question_id>", methods=["DELETE"], endpoint="delete_coding_question")(CodingController.delete_question)
+# Root CRUD routes
+@router.post("")
+@router.post("/")
+@router.post("/questions")
+async def create_question(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = CodingController.create_question(data)
+    return JSONResponse(content=result, status_code=status_code)
 
-# Backward-compatible routes under /api/coding/questions
-coding_bp.route("/questions", methods=["POST"], endpoint="create_coding_question_sub")(CodingController.create_question)
-coding_bp.route("/questions", methods=["GET"], endpoint="get_all_coding_questions_sub")(CodingController.get_all_questions)
-coding_bp.route("/questions/<string:question_id>", methods=["GET"], endpoint="get_coding_question_by_id_sub")(CodingController.get_question_by_id)
-coding_bp.route("/questions/<string:question_id>", methods=["PUT"], endpoint="update_coding_question_sub")(CodingController.update_question)
-coding_bp.route("/questions/<string:question_id>", methods=["DELETE"], endpoint="delete_coding_question_sub")(CodingController.delete_question)
 
-# Assessment Generation & Submission
-coding_bp.route("/generate", methods=["POST"], endpoint="generate_coding_assessment")(CodingController.generate_assessment)
-coding_bp.route("/submit", methods=["POST"], endpoint="submit_coding_assessment")(CodingController.submit_assessment)
+@router.get("")
+@router.get("/")
+@router.get("/questions")
+async def get_all_questions(
+    programmingLanguage: Optional[str] = Query(None),
+    difficulty: Optional[str] = Query(None),
+):
+    result, status_code = CodingController.get_all_questions(
+        programmingLanguage=programmingLanguage,
+        difficulty=difficulty,
+    )
+    return JSONResponse(content=result, status_code=status_code)
+
+
+# Assessment Generation & Submission (must be before /{question_id} to avoid conflict)
+@router.post("/generate")
+async def generate_assessment(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = CodingController.generate_assessment(data)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+@router.post("/submit")
+async def submit_assessment(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = CodingController.submit_assessment(data)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+# Single Question by ID
+@router.get("/{question_id}")
+@router.get("/questions/{question_id}")
+async def get_question_by_id(question_id: str):
+    result, status_code = CodingController.get_question_by_id(question_id)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+@router.put("/{question_id}")
+@router.put("/questions/{question_id}")
+async def update_question(question_id: str, request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = CodingController.update_question(question_id, data)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+@router.delete("/{question_id}")
+@router.delete("/questions/{question_id}")
+async def delete_question(question_id: str):
+    result, status_code = CodingController.delete_question(question_id)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+# Backward-compatible alias
+coding_bp = router

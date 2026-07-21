@@ -3,30 +3,89 @@ Authentication Routes Module
 Registers endpoints for registration, login, and profile operations under /api/auth.
 """
 
-from flask import Blueprint
+from typing import Optional
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import JSONResponse
 
 try:
     from controllers.auth_controller import AuthController
-    from middleware.auth_middleware import token_required
+    from middleware.auth_middleware import get_current_user
 except ImportError:
     from app.controllers.auth_controller import AuthController
-    from app.middleware.auth_middleware import token_required
+    from app.middleware.auth_middleware import get_current_user
 
-auth_bp = Blueprint("auth", __name__, url_prefix="/api/auth")
+router = APIRouter(prefix="/api/auth", tags=["Auth"])
+
 
 # Register User
-auth_bp.route("/register", methods=["POST"], endpoint="register")(AuthController.register)
+@router.post("/register")
+async def register(request: Request):
+    data = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = AuthController.register(data)
+    return JSONResponse(content=result, status_code=status_code)
+
 
 # Login User
-auth_bp.route("/login", methods=["POST"], endpoint="login")(AuthController.login)
+@router.post("/login")
+async def login(request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = AuthController.login(data)
+    return JSONResponse(content=result, status_code=status_code)
+
 
 # Get Profile (Protected Route)
-auth_bp.route("/profile", methods=["GET"], endpoint="get_profile_protected")(token_required(AuthController.get_profile))
-auth_bp.route("/profile/<string:user_id>", methods=["GET"], endpoint="get_profile_by_id")(AuthController.get_profile)
+@router.get("/profile")
+async def get_profile_protected(current_user: dict = Depends(get_current_user)):
+    result, status_code = AuthController.get_profile(current_user=current_user)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+# Get Profile by ID (Unprotected - for admin use)
+@router.get("/profile/{user_id}")
+async def get_profile_by_id(user_id: str):
+    result, status_code = AuthController.get_profile(user_id=user_id)
+    return JSONResponse(content=result, status_code=status_code)
+
 
 # Update Profile (Protected Route)
-auth_bp.route("/profile", methods=["PUT"], endpoint="update_profile_protected")(token_required(AuthController.update_profile))
-auth_bp.route("/profile/<string:user_id>", methods=["PUT"], endpoint="update_profile_by_id")(AuthController.update_profile)
+@router.put("/profile")
+async def update_profile_protected(request: Request, current_user: dict = Depends(get_current_user)):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = AuthController.update_profile(data=data, current_user=current_user)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+# Update Profile by ID
+@router.put("/profile/{user_id}")
+async def update_profile_by_id(user_id: str, request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = AuthController.update_profile(data=data, user_id=user_id)
+    return JSONResponse(content=result, status_code=status_code)
+
 
 # Change Password (Protected Route)
-auth_bp.route("/change-password", methods=["PUT"], endpoint="change_password")(token_required(AuthController.change_password))
+@router.put("/change-password")
+async def change_password(request: Request, current_user: dict = Depends(get_current_user)):
+    try:
+        data = await request.json()
+    except Exception:
+        data = {}
+    result, status_code = AuthController.change_password(data=data, current_user=current_user)
+    return JSONResponse(content=result, status_code=status_code)
+
+
+# Keep backward-compatible Blueprint export for existing imports
+auth_bp = router
