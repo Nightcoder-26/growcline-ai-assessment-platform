@@ -4,88 +4,83 @@ Registers endpoints for registration, login, and profile operations under /api/a
 """
 
 from typing import Optional
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 try:
     from controllers.auth_controller import AuthController
     from middleware.auth_middleware import get_current_user
+    from schemas.request_models import (
+        RegisterRequest, LoginRequest,
+        UpdateProfileRequest, ChangePasswordRequest
+    )
 except ImportError:
     from app.controllers.auth_controller import AuthController
     from app.middleware.auth_middleware import get_current_user
+    from app.schemas.request_models import (
+        RegisterRequest, LoginRequest,
+        UpdateProfileRequest, ChangePasswordRequest
+    )
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
 
-# Register User
-@router.post("/register")
-async def register(request: Request):
-    data = await request.json() if request.headers.get("content-type", "").startswith("application/json") else {}
-    try:
-        data = await request.json()
-    except Exception:
-        data = {}
-    result, status_code = AuthController.register(data)
+@router.post("/register", summary="Register a new user")
+async def register(body: RegisterRequest):
+    result, status_code = AuthController.register(body.model_dump())
     return JSONResponse(content=result, status_code=status_code)
 
 
-# Login User
-@router.post("/login")
-async def login(request: Request):
-    try:
-        data = await request.json()
-    except Exception:
-        data = {}
-    result, status_code = AuthController.login(data)
+@router.post("/login", summary="Login with email and password")
+async def login(body: LoginRequest):
+    result, status_code = AuthController.login(body.model_dump())
     return JSONResponse(content=result, status_code=status_code)
 
 
-# Get Profile (Protected Route)
-@router.get("/profile")
+@router.get("/profile", summary="Get authenticated user profile")
 async def get_profile_protected(current_user: dict = Depends(get_current_user)):
     result, status_code = AuthController.get_profile(current_user=current_user)
     return JSONResponse(content=result, status_code=status_code)
 
 
-# Get Profile by ID (Unprotected - for admin use)
-@router.get("/profile/{user_id}")
+@router.get("/profile/{user_id}", summary="Get user profile by ID")
 async def get_profile_by_id(user_id: str):
     result, status_code = AuthController.get_profile(user_id=user_id)
     return JSONResponse(content=result, status_code=status_code)
 
 
-# Update Profile (Protected Route)
-@router.put("/profile")
-async def update_profile_protected(request: Request, current_user: dict = Depends(get_current_user)):
-    try:
-        data = await request.json()
-    except Exception:
-        data = {}
-    result, status_code = AuthController.update_profile(data=data, current_user=current_user)
+@router.put("/profile", summary="Update authenticated user profile")
+async def update_profile_protected(
+    body: UpdateProfileRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    result, status_code = AuthController.update_profile(
+        data=body.model_dump(exclude_none=True),
+        current_user=current_user
+    )
     return JSONResponse(content=result, status_code=status_code)
 
 
-# Update Profile by ID
-@router.put("/profile/{user_id}")
-async def update_profile_by_id(user_id: str, request: Request):
-    try:
-        data = await request.json()
-    except Exception:
-        data = {}
-    result, status_code = AuthController.update_profile(data=data, user_id=user_id)
+@router.put("/profile/{user_id}", summary="Update user profile by ID")
+async def update_profile_by_id(user_id: str, body: UpdateProfileRequest):
+    result, status_code = AuthController.update_profile(
+        data=body.model_dump(exclude_none=True),
+        user_id=user_id
+    )
     return JSONResponse(content=result, status_code=status_code)
 
 
-# Change Password (Protected Route)
-@router.put("/change-password")
-async def change_password(request: Request, current_user: dict = Depends(get_current_user)):
-    try:
-        data = await request.json()
-    except Exception:
-        data = {}
-    result, status_code = AuthController.change_password(data=data, current_user=current_user)
+@router.put("/change-password", summary="Change authenticated user password")
+async def change_password(
+    body: ChangePasswordRequest,
+    current_user: dict = Depends(get_current_user)
+):
+    result, status_code = AuthController.change_password(
+        data=body.model_dump(),
+        current_user=current_user
+    )
     return JSONResponse(content=result, status_code=status_code)
 
 
-# Keep backward-compatible Blueprint export for existing imports
+# Backward-compatible alias
 auth_bp = router
