@@ -575,12 +575,24 @@ def get_analytics_report(interview_id: str, user_id: str, user_role: str = "cand
     except Exception:
         date_label = str(datetime.utcnow().date())
 
-    # Proctor summary
-    tab_switches     = report.get("tabSwitches", 0)
-    multiple_faces   = report.get("multipleFaces", 0)
-    fullscreen_exits = report.get("fullscreenExit", 0)
-    mic_issues       = report.get("microphoneDisabled", 0)
-    face_missing     = report.get("faceMissing", 0)
+    # Proctor summary — read from cheating_report (which has live combined counts)
+    # rather than the analytics model cache (whose field names are stale)
+    cheating_doc = db[CheatingReport.COLLECTION].find_one({"interviewId": interview_oid})
+    violations = cheating_doc.get("violations", {}) if cheating_doc else {}
+
+    tab_switches     = violations.get("tabSwitch", 0)
+    multiple_faces   = violations.get("multipleFaces", 0)
+    fullscreen_exits = violations.get("windowMinimized", 0)
+    mic_issues       = violations.get("backgroundVoice", 0)
+    face_missing     = violations.get("faceMissing", 0)
+
+    # Fallback to analytics report fields if cheating report not yet generated
+    if not cheating_doc:
+        tab_switches     = report.get("tabSwitches", 0)
+        multiple_faces   = report.get("multipleFaces", 0)
+        fullscreen_exits = report.get("fullscreenExit", 0)
+        mic_issues       = report.get("microphoneDisabled", report.get("backgroundVoice", 0))
+        face_missing     = report.get("faceMissing", 0)
 
     # Strengths / improvements derived from proctoring data
     strengths:    list[str] = []

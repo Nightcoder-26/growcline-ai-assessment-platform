@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
+import { useInterviewSession } from "@/contexts/InterviewSessionContext";
 
 import AnalyticsHeader from "@/components/interview-analytics/AnalyticsHeader";
 import SummaryCard from "@/components/interview-analytics/SummaryCard";
@@ -52,35 +53,136 @@ export interface FullAnalyticsData {
 
 export default function InterviewAnalyticsClient() {
   const searchParams = useSearchParams();
-  const interviewId = searchParams?.get("interviewId") ?? null;
 
+  // Sanitise: treat null, undefined, and empty string as "no ID"
+  const rawId = searchParams?.get("interviewId");
+  const interviewId: string | null = rawId?.trim() || null;
+
+  // ── Context session (written by Video Recording page) ─────────────────────
+  const { session, restoreSession } = useInterviewSession();
+
+  // Start with loading=false when there is no interviewId
   const [data, setData] = useState<FullAnalyticsData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!!interviewId);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch full report from GET /api/interview-analytics/{interviewId}
+  // Track whether we attempted restoration from sessionStorage
+  const restoredRef = useRef(false);
+
+  // ── Restore session from sessionStorage if context is empty ───────────────
+  useEffect(() => {
+    if (!interviewId || restoredRef.current) return;
+    restoredRef.current = true;
+    if (!session.interviewId || session.interviewId !== interviewId) {
+      restoreSession(interviewId);
+    }
+  }, [interviewId, session.interviewId, restoreSession]);
+
+  // ── Merge context proctoring values into API data ─────────────────────────
+  const mergeContextMetrics = useCallback(
+    (apiData: FullAnalyticsData): FullAnalyticsData => {
+      if (!session.interviewId || session.interviewId !== interviewId) {
+        return apiData; // No live session — use API data as-is
+      }
+
+      const proctor = {
+        faceMissing:      session.faceMissing,
+        multipleFaces:    session.multipleFaces,
+        tabSwitches:      session.tabSwitches,
+        networkIssues:    apiData.proctor.networkIssues,
+        microphoneIssues: session.microphoneViolations,
+        fullscreenExits:  session.fullscreenExits,
+      };
+
+      const riskScore =
+        session.riskScore > 0 ? session.riskScore : apiData.metrics.riskScore;
+
+      const overallScore =
+        apiData.overallScore > 0 ? apiData.overallScore : session.overallScore;
+
+      const duration =
+        session.duration && session.duration !== ""
+          ? session.duration
+          : apiData.duration;
+
+      // Derive insights from actual session data
+      const strengths: string[] = [];
+      const improvements: string[] = [];
+
+      if (session.tabSwitches === 0)
+        strengths.push("Maintained full browser focus throughout the session.");
+      if (session.multipleFaces === 0)
+        strengths.push("No multiple faces detected — single-candidate integrity confirmed.");
+      if (riskScore < 20)
+        strengths.push("Overall risk score is low, indicating honest conduct.");
+      if (session.tabSwitches > 0)
+        improvements.push(`Reduce tab switching — detected ${session.tabSwitches} times.`);
+      if (session.multipleFaces > 0)
+        improvements.push(`Avoid having other people in frame — detected ${session.multipleFaces} times.`);
+      if (session.fullscreenExits > 0)
+        improvements.push(`Stay in fullscreen mode — exited ${session.fullscreenExits} times.`);
+      if (session.faceMissing > 0)
+        improvements.push(`Keep face visible in camera — off-screen ${session.faceMissing} times.`);
+      if (session.microphoneViolations > 0)
+        improvements.push(`Avoid muting microphone — detected ${session.microphoneViolations} times.`);
+
+      const finalStrengths = strengths.length > 0 ? strengths : apiData.strengths;
+      const finalImprovements = improvements.length > 0 ? improvements : apiData.improvements;
+
+      const finalRecommendation: FullAnalyticsData["recommendation"] =
+        riskScore >= 60
+          ? "Not Recommended"
+          : riskScore >= 25 || overallScore < 60
+          ? "Needs Improvement"
+          : "Recommended";
+
+      return {
+        ...apiData,
+        duration,
+        overallScore,
+        metrics: { ...apiData.metrics, riskScore },
+        proctor,
+        strengths: finalStrengths,
+        improvements: finalImprovements,
+        recommendation: finalRecommendation,
+      };
+    },
+    [session, interviewId]
+  );
+
+  // ── Fetch from backend ─────────────────────────────────────────────────────
   const fetchAnalytics = useCallback(
     async (isRefresh = false) => {
-      if (!interviewId) return;
+      // Guard: never call API with empty/null interviewId
+      if (!interviewId) {
+        setLoading(false);
+        return;
+      }
+
       if (isRefresh) setRefreshing(true);
       else setLoading(true);
       setError(null);
 
       try {
         const query = isRefresh ? "?refresh=true" : "";
-        const res = await apiClient.get(`/api/interview-analytics/${interviewId}${query}`);
+        const res = await apiClient.get(
+          `/api/interview-analytics/${interviewId}${query}`
+        );
         if (res.data?.data) {
-          setData(res.data.data as FullAnalyticsData);
+          setData(mergeContextMetrics(res.data.data as FullAnalyticsData));
         }
       } catch {
         try {
-          await apiClient.post(`/api/analytics/interview/${interviewId}/generate`, {
-            force_refresh: true,
-          });
-          const res = await apiClient.get(`/api/interview-analytics/${interviewId}?refresh=true`);
+          await apiClient.post(
+            `/api/analytics/interview/${interviewId}/generate`,
+            { force_refresh: true }
+          );
+          const res = await apiClient.get(
+            `/api/interview-analytics/${interviewId}?refresh=true`
+          );
           if (res.data?.data) {
-            setData(res.data.data as FullAnalyticsData);
+            setData(mergeContextMetrics(res.data.data as FullAnalyticsData));
           }
         } catch (err) {
           const msg = err instanceof Error ? err.message : "Failed to load analytics.";
@@ -91,16 +193,31 @@ export default function InterviewAnalyticsClient() {
         setRefreshing(false);
       }
     },
-    [interviewId]
+    [interviewId, mergeContextMetrics]
   );
 
+  // Re-merge whenever live session proctoring values change
   useEffect(() => {
+    if (!data) return;
+    setData((prev) => (prev ? mergeContextMetrics(prev) : prev));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    session.riskScore,
+    session.tabSwitches,
+    session.faceMissing,
+    session.multipleFaces,
+    session.microphoneViolations,
+    session.fullscreenExits,
+  ]);
+
+  // Initial fetch + polling (only when interviewId is present)
+  useEffect(() => {
+    if (!interviewId) return;
     fetchAnalytics(true);
-    const interval = setInterval(() => {
-      fetchAnalytics(true);
-    }, 8000);
+    const interval = setInterval(() => fetchAnalytics(true), 8000);
     return () => clearInterval(interval);
-  }, [fetchAnalytics]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interviewId]);
 
   // ── Guard: No interview ID ────────────────────────────────────────────────
   if (!interviewId) {
@@ -110,13 +227,14 @@ export default function InterviewAnalyticsClient() {
           <div className="text-5xl">⚠️</div>
           <h2 className="text-xl font-bold text-amber-400">No Interview Session Specified</h2>
           <p className="text-slate-400 text-sm">
-            Please provide a valid session parameter in the URL query string.
+            Please complete an interview on the Video Recording page first. You'll be
+            automatically redirected here when your session ends.
           </p>
           <Link
-            href="/"
+            href="/video-recording"
             className="inline-flex items-center gap-2 rounded-2xl bg-[#4096ff] hover:bg-[#60a5fa] px-6 py-3 font-semibold text-white transition"
           >
-            <ArrowLeft className="h-4 w-4" /> Start New Session
+            <ArrowLeft className="h-4 w-4" /> Start Interview
           </Link>
         </div>
       </main>
@@ -149,6 +267,12 @@ export default function InterviewAnalyticsClient() {
           >
             Retry Analytics Generation
           </button>
+          <Link
+            href="/video-recording"
+            className="block mt-2 text-sm text-slate-400 hover:text-white transition"
+          >
+            ← Back to Interview
+          </Link>
         </div>
       </main>
     );
@@ -157,7 +281,7 @@ export default function InterviewAnalyticsClient() {
   return (
     <main className="min-h-screen bg-[#F8FAFC] p-6 lg:p-10 font-sans">
       <div className="max-w-7xl mx-auto space-y-8">
-        {/* Header Bar with Action Controls */}
+        {/* Header Bar */}
         <div className="flex items-center justify-between">
           <Link
             href="/"
@@ -176,10 +300,7 @@ export default function InterviewAnalyticsClient() {
           </button>
         </div>
 
-        <AnalyticsHeader
-          interview={data.interview}
-          candidate={data.candidate}
-        />
+        <AnalyticsHeader interview={data.interview} candidate={data.candidate} />
 
         <SummaryCard
           candidate={data.candidate}
@@ -197,10 +318,7 @@ export default function InterviewAnalyticsClient() {
 
         <AIInsights strengths={data.strengths} improvements={data.improvements} />
 
-        <RecommendationCard
-          status={data.recommendation}
-          summary={data.summary}
-        />
+        <RecommendationCard status={data.recommendation} summary={data.summary} />
       </div>
     </main>
   );
