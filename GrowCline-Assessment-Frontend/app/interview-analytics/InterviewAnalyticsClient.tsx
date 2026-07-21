@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 import apiClient from "@/lib/apiClient";
+import { useInterviewSession } from "@/contexts/InterviewSessionContext";
 
 import AnalyticsHeader from "@/components/interview-analytics/AnalyticsHeader";
 import SummaryCard from "@/components/interview-analytics/SummaryCard";
@@ -54,12 +55,137 @@ export default function InterviewAnalyticsClient() {
   const searchParams = useSearchParams();
   const interviewId = searchParams?.get("interviewId") ?? null;
 
+  // ── Context session (written by Video Recording page) ─────────────────────
+  const { session, restoreSession } = useInterviewSession();
+
   const [data, setData] = useState<FullAnalyticsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Fetch full report from GET /api/interview-analytics/{interviewId}
+  // Track whether we attempted restoration from sessionStorage
+  const restoredRef = useRef(false);
+
+  // ── Restore session from sessionStorage if context is empty ───────────────
+  useEffect(() => {
+    if (!interviewId || restoredRef.current) return;
+    restoredRef.current = true;
+    // If context has no live session for this interviewId, try sessionStorage
+    if (!session.interviewId || session.interviewId !== interviewId) {
+      restoreSession(interviewId);
+    }
+  }, [interviewId, session.interviewId, restoreSession]);
+
+  // ── Merge context proctoring values into API data ─────────────────────────
+  //
+  // The context is the canonical source of truth for proctoring metrics.
+  // If the context session matches the current interviewId we override
+  // those specific fields from context so they are guaranteed identical
+  // to what was displayed on the Video Recording page.
+  //
+  const mergeContextMetrics = useCallback(
+    (apiData: FullAnalyticsData): FullAnalyticsData => {
+      if (!session.interviewId || session.interviewId !== interviewId) {
+        return apiData; // No live session — use API data as-is
+      }
+
+      // Proctoring counters: always use context values (live, never cached)
+      const proctor = {
+        faceMissing:     session.faceMissing,
+        multipleFaces:   session.multipleFaces,
+        tabSwitches:     session.tabSwitches,
+        networkIssues:   apiData.proctor.networkIssues, // not tracked in context
+        microphoneIssues: session.microphoneViolations,
+        fullscreenExits: session.fullscreenExits,
+      };
+
+      // Risk score: prefer context (live), fall back to API
+      const riskScore =
+        session.riskScore > 0 ? session.riskScore : apiData.metrics.riskScore;
+
+      // Overall score: prefer API (AI-computed), fall back to context
+      const overallScore =
+        apiData.overallScore > 0 ? apiData.overallScore : session.overallScore;
+
+      // Duration: prefer context (exact elapsed time from Video Recording)
+      const duration =
+        session.duration && session.duration !== ""
+          ? session.duration
+          : apiData.duration;
+
+      // Derive AI insights from actual proctoring data in context
+      const strengths: string[] = [];
+      const improvements: string[] = [];
+
+      if (session.tabSwitches === 0) {
+        strengths.push("Maintained full browser focus throughout the session.");
+      }
+      if (session.multipleFaces === 0) {
+        strengths.push(
+          "No multiple faces detected — single-candidate integrity confirmed."
+        );
+      }
+      if (riskScore < 20) {
+        strengths.push("Overall risk score is low, indicating honest conduct.");
+      }
+      if (session.tabSwitches > 0) {
+        improvements.push(
+          `Reduce tab switching — detected ${session.tabSwitches} times.`
+        );
+      }
+      if (session.multipleFaces > 0) {
+        improvements.push(
+          `Avoid having other people in frame — detected ${session.multipleFaces} times.`
+        );
+      }
+      if (session.fullscreenExits > 0) {
+        improvements.push(
+          `Stay in fullscreen mode — exited ${session.fullscreenExits} times.`
+        );
+      }
+      if (session.faceMissing > 0) {
+        improvements.push(
+          `Keep face visible in camera — detected off-screen ${session.faceMissing} times.`
+        );
+      }
+      if (session.microphoneViolations > 0) {
+        improvements.push(
+          `Avoid muting microphone during interview — detected ${session.microphoneViolations} times.`
+        );
+      }
+
+      // Use API strengths/improvements as baseline if context has no violations
+      const finalStrengths =
+        strengths.length > 0 ? strengths : apiData.strengths;
+      const finalImprovements =
+        improvements.length > 0 ? improvements : apiData.improvements;
+
+      // Final recommendation derived from live risk score
+      const finalRecommendation: FullAnalyticsData["recommendation"] =
+        riskScore >= 60
+          ? "Not Recommended"
+          : riskScore >= 25 || overallScore < 60
+          ? "Needs Improvement"
+          : "Recommended";
+
+      return {
+        ...apiData,
+        duration,
+        overallScore,
+        metrics: {
+          ...apiData.metrics,
+          riskScore,
+        },
+        proctor,
+        strengths: finalStrengths,
+        improvements: finalImprovements,
+        recommendation: finalRecommendation,
+      };
+    },
+    [session, interviewId]
+  );
+
+  // ── Fetch from backend ─────────────────────────────────────────────────────
   const fetchAnalytics = useCallback(
     async (isRefresh = false) => {
       if (!interviewId) return;
@@ -69,21 +195,28 @@ export default function InterviewAnalyticsClient() {
 
       try {
         const query = isRefresh ? "?refresh=true" : "";
-        const res = await apiClient.get(`/api/interview-analytics/${interviewId}${query}`);
+        const res = await apiClient.get(
+          `/api/interview-analytics/${interviewId}${query}`
+        );
         if (res.data?.data) {
-          setData(res.data.data as FullAnalyticsData);
+          // Merge context metrics on top of API data
+          setData(mergeContextMetrics(res.data.data as FullAnalyticsData));
         }
       } catch {
         try {
-          await apiClient.post(`/api/analytics/interview/${interviewId}/generate`, {
-            force_refresh: true,
-          });
-          const res = await apiClient.get(`/api/interview-analytics/${interviewId}?refresh=true`);
+          await apiClient.post(
+            `/api/analytics/interview/${interviewId}/generate`,
+            { force_refresh: true }
+          );
+          const res = await apiClient.get(
+            `/api/interview-analytics/${interviewId}?refresh=true`
+          );
           if (res.data?.data) {
-            setData(res.data.data as FullAnalyticsData);
+            setData(mergeContextMetrics(res.data.data as FullAnalyticsData));
           }
         } catch (err) {
-          const msg = err instanceof Error ? err.message : "Failed to load analytics.";
+          const msg =
+            err instanceof Error ? err.message : "Failed to load analytics.";
           setError(msg);
         }
       } finally {
@@ -91,9 +224,25 @@ export default function InterviewAnalyticsClient() {
         setRefreshing(false);
       }
     },
-    [interviewId]
+    [interviewId, mergeContextMetrics]
   );
 
+  // ── Re-merge whenever session context updates (live session still running) ─
+  useEffect(() => {
+    if (!data) return;
+    // Re-apply context merge whenever session proctoring values change
+    setData((prev) => (prev ? mergeContextMetrics(prev) : prev));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    session.riskScore,
+    session.tabSwitches,
+    session.faceMissing,
+    session.multipleFaces,
+    session.microphoneViolations,
+    session.fullscreenExits,
+  ]);
+
+  // ── Initial fetch + polling ────────────────────────────────────────────────
   useEffect(() => {
     fetchAnalytics(true);
     const interval = setInterval(() => {

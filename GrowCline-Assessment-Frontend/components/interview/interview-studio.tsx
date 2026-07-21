@@ -18,6 +18,7 @@ import { AlertsPanel } from "@/components/live-proctoring/alerts-panel";
 import { useInterview } from "@/hooks/useInterview";
 import { useAuth } from "@/hooks/useAuth";
 import { useProctoring } from "@/hooks/useProctoring";
+import { useInterviewSession } from "@/contexts/InterviewSessionContext";
 import apiClient from "@/lib/apiClient";
 
 // ---------------------------------------------------------------------------
@@ -52,6 +53,9 @@ export function InterviewStudio() {
   const searchParams = useSearchParams();
   const router       = useRouter();
   const { userId }   = useAuth();
+
+  // ── Session context (single source of truth for Analytics page) ──────────
+  const { updateSession, freezeSession } = useInterviewSession();
 
   const {
     interview,
@@ -149,9 +153,20 @@ export function InterviewStudio() {
   useEffect(() => {
     if (sessionStarted) return;
     setSessionStarted(true);
-    startInterview({ jobRole, interviewType, difficulty, totalQuestions: 5 }).catch(
-      (err) => showToast(`Could not start interview: ${err.message}`, true)
-    );
+    startInterview({ jobRole, interviewType, difficulty, totalQuestions: 5 })
+      .then(({ interview: sess }) => {
+        // Write initial session identity into context
+        updateSession({
+          interviewId: sess.id,
+          sessionId:   sess.id,
+          jobRole,
+          startTime:   sess.startedAt ?? new Date().toISOString(),
+          date:        new Date().toISOString().slice(0, 10),
+          recordingStatus: "idle",
+          status:      "active",
+        });
+      })
+      .catch((err) => showToast(`Could not start interview: ${err.message}`, true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -187,7 +202,19 @@ export function InterviewStudio() {
       try {
         const res = await apiClient.get(`/api/interview/cheating/${interview.id}`);
         const data = res.data?.data as CheatingStatus;
-        if (data) setCheatingStatus(data);
+        if (data) {
+          setCheatingStatus(data);
+          // ── Push live cheating metrics into context (single source of truth)
+          updateSession({
+            riskScore:            data.riskScore,
+            tabSwitches:          data.tabSwitches,
+            multipleFaces:        data.multipleFaces,
+            faceMissing:          data.faceMissing,
+            microphoneViolations: data.microphoneViolations,
+            fullscreenExits:      data.fullscreenExits,
+            recommendation:       data.recommendation,
+          });
+        }
       } catch {
         // Non-fatal: cheating status poll failure does not disrupt interview
       }
@@ -199,7 +226,7 @@ export function InterviewStudio() {
     return () => {
       if (cheatingPollRef.current) clearInterval(cheatingPollRef.current);
     };
-  }, [interview?.id]);
+  }, [interview?.id, updateSession]);
 
   // ── Toast helper ──────────────────────────────────────────────────────────
 
@@ -251,6 +278,13 @@ export function InterviewStudio() {
           await endInterview(interview.id);
         }
 
+        // ── Freeze the session so Analytics page reads exact final values ──
+        updateSession({
+          recordingStatus: "ended",
+          duration: `${Math.max(1, Math.round(elapsed / 60))} Minutes`,
+        });
+        freezeSession();
+
         setSessionEnded(true);
 
         setTimeout(() => {
@@ -269,7 +303,7 @@ export function InterviewStudio() {
       const msg = err instanceof Error ? err.message : "Failed to submit answer.";
       showToast(msg, true);
     }
-  }, [interview, currentQuestion, candidateAnswerText, submitAnswer, endInterview, getNextQuestion, clearBlobUrl, router]);
+  }, [interview, currentQuestion, candidateAnswerText, submitAnswer, endInterview, getNextQuestion, clearBlobUrl, router, elapsed, updateSession, freezeSession]);
 
   // ── Upload video blob ─────────────────────────────────────────────────────
 

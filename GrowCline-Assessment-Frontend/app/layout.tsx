@@ -2,6 +2,7 @@ import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
+import { InterviewSessionProvider } from '@/contexts/InterviewSessionContext'
 
 const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
 const jetbrainsMono = JetBrains_Mono({
@@ -49,7 +50,11 @@ export default function RootLayout({
       className={`bg-background ${inter.variable} ${jetbrainsMono.variable}`}
     >
       <body className="font-sans antialiased">
-        {children}
+        {/* InterviewSessionProvider: single source of truth for all session
+            metrics, shared between /video-recording and /interview-analytics */}
+        <InterviewSessionProvider>
+          {children}
+        </InterviewSessionProvider>
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>
     </html>
