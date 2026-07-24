@@ -6,16 +6,13 @@ FastAPI APIRouter for the Cheating Detection Engine backend module.
 import logging
 from datetime import datetime
 from typing import Optional
+from bson import ObjectId
+
 from fastapi import APIRouter, Depends, Header, HTTPException
 
-try:
-    from config.database import Database
-    from app.controllers.cheating_detection_controller import CheatingDetectionController
-    from middleware.jwt_utils import decode_token
-except ImportError:
-    from app.config.database import Database
-    from app.controllers.cheating_detection_controller import CheatingDetectionController
-    from app.middleware.jwt_utils import decode_token
+from app.config.database import Database
+from app.controllers.cheating_detection_controller import CheatingDetectionController
+from app.utils.jwt_utils import decode_token
 
 logger = logging.getLogger(__name__)
 
@@ -64,7 +61,6 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         return _get_guest_user()
 
     try:
-        from bson import ObjectId
         user = db.users.find_one({"_id": ObjectId(payload["id"])})
         if not user:
             return _get_guest_user()

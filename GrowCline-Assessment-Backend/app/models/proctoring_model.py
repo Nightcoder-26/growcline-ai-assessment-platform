@@ -51,7 +51,7 @@ class ProctoringLog:
         if mapped_event_type not in ["FACE_MISSING", "MULTIPLE_FACES", "TAB_SWITCH", "WINDOW_MINIMIZED", "BACKGROUND_VOICE"]:
             mapped_event_type = "TAB_SWITCH"
 
-        valid_severities = ["LOW", "MEDIUM", "HIGH", "CRITICAL"]
+        valid_severities = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
         mapped_severity = str(severity).upper()
         if mapped_severity not in valid_severities:
             mapped_severity = "LOW"

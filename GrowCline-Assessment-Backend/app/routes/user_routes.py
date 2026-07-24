@@ -6,14 +6,9 @@ Registers endpoints for User Management CRUD under /api/users.
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-try:
-    from app.controllers.user_controller import UserController
-    from middleware.auth_middleware import get_current_user
-    from schemas.request_models import CreateUserRequest, UpdateUserRequest
-except ImportError:
-    from app.controllers.user_controller import UserController
-    from app.middleware.auth_middleware import get_current_user
-    from app.schemas.request_models import CreateUserRequest, UpdateUserRequest
+from app.controllers.user_controller import UserController
+from app.middleware.auth_middleware import get_current_user
+from app.schemas.request_models import CreateUserRequest, UpdateUserRequest
 
 router = APIRouter(prefix="/api/users", tags=["Users"])
 
@@ -54,5 +49,5 @@ async def delete_user(user_id: str, current_user: dict = Depends(get_current_use
     return JSONResponse(content=result, status_code=status_code)
 
 
-# Backward-compatible alias
+# Backward-compatible alias for test imports
 user_bp = router

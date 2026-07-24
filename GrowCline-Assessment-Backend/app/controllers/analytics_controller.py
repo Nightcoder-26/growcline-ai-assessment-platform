@@ -7,12 +7,8 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from typing import Optional
 
-try:
-    from config.database import Database
-    from services.analytics_service import AnalyticsService
-except ImportError:
-    from app.config.database import Database
-    from app.services.analytics_service import AnalyticsService
+from app.config.database import Database
+from app.services.analytics_service import AnalyticsService
 
 
 class AnalyticsController:
@@ -99,8 +95,8 @@ class AnalyticsController:
             doc = dict(payload)
             if target_user_id:
                 doc["userId"] = target_user_id
-            doc["createdAt"] = datetime.now(timezone.utc)
-            doc["updatedAt"] = datetime.now(timezone.utc)
+            doc["createdAt"] = datetime.now(timezone.utc).isoformat()
+            doc["updatedAt"] = datetime.now(timezone.utc).isoformat()
 
             if "_id" in doc:
                 doc.pop("_id", None)

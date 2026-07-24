@@ -1,3 +1,7 @@
+"""
+Main FastAPI Application Entrypoint for GrowCline Assessment & Interview Intelligence Platform.
+"""
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException
@@ -5,6 +9,26 @@ from fastapi.responses import JSONResponse
 
 from app.config.database import Database
 from app.config.settings import Config
+from app.routes import (
+    auth_router,
+    technical_router,
+    result_router,
+    analytics_router,
+    aptitude_router,
+    assessment_router,
+    assessment_plural_router,
+    coding_router,
+    user_router,
+)
+from app.routes.recording_routes import router as recording_router
+from app.routes.proctoring_routes import router as proctoring_router
+from app.routes.cheating_detection_routes import router as cheating_router
+from app.routes.interview_analytics_routes import router as interview_analytics_router
+from app.routes.interview_routes import router as interview_router
+from app.routes.interview_session_routes import (
+    router as interview_session_router,
+    analytics_router as interview_session_analytics_router,
+)
 
 app = FastAPI(title="GrowCline AI Assessment & Interview Intelligence Platform")
 
@@ -17,11 +41,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Connect MongoDB
+# Connect MongoDB Atlas
 Database.connect()
 
 
-# Standardise HTTPExceptions to match Team A's error response format: {"success": False, "message": "..."}
+# Standardize HTTPExceptions format: {"success": False, "message": "..."}
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request, exc: HTTPException):
     return JSONResponse(
@@ -33,19 +57,7 @@ async def http_exception_handler(request, exc: HTTPException):
     )
 
 
-# ── Team A: Migrated Flask → FastAPI Routers ────────────────────────────────
-from app.routes import (
-    auth_router,
-    technical_router,
-    result_router,
-    analytics_router,
-    aptitude_router,
-    assessment_router,
-    assessment_plural_router,
-    coding_router,
-    user_router,
-)
-
+# Register all API routers
 app.include_router(auth_router)
 app.include_router(technical_router)
 app.include_router(result_router)
@@ -55,44 +67,16 @@ app.include_router(assessment_router)
 app.include_router(assessment_plural_router)
 app.include_router(coding_router)
 app.include_router(user_router)
-# ────────────────────────────────────────────────────────────────────────────
-
-# ── Team B: Video Recording Module ──────────────────────────────────────────
-from app.routes.recording_routes import router as recording_router
 app.include_router(recording_router)
-# ────────────────────────────────────────────────────────────────────────────
-
-# ── Team B: Live Proctoring Module ──────────────────────────────────────────
-from app.routes.proctoring_routes import router as proctoring_router
 app.include_router(proctoring_router)
-# ────────────────────────────────────────────────────────────────────────────
-
-# ── Team B: Cheating Detection Engine Module ────────────────────────────────
-from app.routes.cheating_detection_routes import router as cheating_router
 app.include_router(cheating_router)
-# ────────────────────────────────────────────────────────────────────────────
-
-# ── Team B: Interview Analytics Module ──────────────────────────────────────
-from app.routes.interview_analytics_routes import router as interview_analytics_router
 app.include_router(interview_analytics_router)
-# ────────────────────────────────────────────────────────────────────────────
-
-# ── Team B: AI Interview Module ──────────────────────────────────────────────
-from app.routes.interview_routes import router as interview_router
 app.include_router(interview_router)
-# ────────────────────────────────────────────────────────────────────────────
-
-# ── Team B: Unified Interview Session Module ─────────────────────────────────
-# Orchestrates Video Recording + Live Proctoring + Cheating Detection + Analytics
-# into a single session lifecycle (POST /api/interview/start, /end, etc.)
-from app.routes.interview_session_routes import router as interview_session_router
-from app.routes.interview_session_routes import analytics_router as interview_session_analytics_router
 app.include_router(interview_session_router)
 app.include_router(interview_session_analytics_router)
-# ────────────────────────────────────────────────────────────────────────────
 
 
-@app.get("/")
+@app.get("/", summary="Health check endpoint")
 async def home():
     return {
         "success": True,
@@ -102,7 +86,6 @@ async def home():
 
 if __name__ == "__main__":
     import uvicorn
-    # Pass the 'app' object directly to avoid namespace collision with the 'app/' directory
     uvicorn.run(
         app,
         host=Config.HOST,

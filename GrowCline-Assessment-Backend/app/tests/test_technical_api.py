@@ -6,22 +6,16 @@ Tests CRUD, generate, and submit operations under /api/technical.
 import unittest
 from unittest.mock import patch, MagicMock
 from bson import ObjectId
-from flask import Flask
+from fastapi.testclient import TestClient
 
-try:
-    from routes.technical_routes import technical_bp
-except ImportError:
-    from app.routes.technical_routes import technical_bp
+from app import app
 
 
 class TestTechnicalAPI(unittest.TestCase):
     """Test suite for /api/technical endpoints."""
 
     def setUp(self) -> None:
-        self.app = Flask(__name__)
-        self.app.register_blueprint(technical_bp, url_prefix="/api/technical")
-        self.client = self.app.test_client()
-
+        self.client = TestClient(app)
         self.mock_db = MagicMock()
         self.mock_col = MagicMock()
         self.mock_db.technical_questions = self.mock_col
@@ -45,7 +39,7 @@ class TestTechnicalAPI(unittest.TestCase):
 
         res = self.client.post("/api/technical", json=payload)
         self.assertEqual(res.status_code, 201)
-        data = res.get_json()
+        data = res.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["question_id"], str(fake_id))
 
@@ -74,7 +68,7 @@ class TestTechnicalAPI(unittest.TestCase):
 
         res = self.client.post("/api/technical/submit", json=payload)
         self.assertEqual(res.status_code, 200)
-        data = res.get_json()
+        data = res.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["score"], 2)
         self.assertEqual(data["percentage"], 100)

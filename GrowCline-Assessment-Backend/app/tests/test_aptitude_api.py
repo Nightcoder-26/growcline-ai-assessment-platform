@@ -6,22 +6,16 @@ Tests CRUD, generate, and submit operations under /api/aptitude.
 import unittest
 from unittest.mock import patch, MagicMock
 from bson import ObjectId
-from flask import Flask
+from fastapi.testclient import TestClient
 
-try:
-    from routes.aptitude_routes import aptitude_bp
-except ImportError:
-    from app.routes.aptitude_routes import aptitude_bp
+from app import app
 
 
 class TestAptitudeAPI(unittest.TestCase):
     """Test suite for /api/aptitude endpoints."""
 
     def setUp(self) -> None:
-        self.app = Flask(__name__)
-        self.app.register_blueprint(aptitude_bp, url_prefix="/api/aptitude")
-        self.client = self.app.test_client()
-
+        self.client = TestClient(app)
         self.mock_db = MagicMock()
         self.mock_col = MagicMock()
         self.mock_db.aptitude_questions = self.mock_col
@@ -44,7 +38,7 @@ class TestAptitudeAPI(unittest.TestCase):
 
         res = self.client.post("/api/aptitude", json=payload)
         self.assertEqual(res.status_code, 201)
-        data = res.get_json()
+        data = res.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["question_id"], str(fake_id))
 
@@ -72,7 +66,7 @@ class TestAptitudeAPI(unittest.TestCase):
 
         res = self.client.post("/api/aptitude/submit", json=payload)
         self.assertEqual(res.status_code, 200)
-        data = res.get_json()
+        data = res.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["score"], 2)
         self.assertEqual(data["percentage"], 100)

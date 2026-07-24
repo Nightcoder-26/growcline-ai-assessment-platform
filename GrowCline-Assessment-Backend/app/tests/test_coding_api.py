@@ -6,22 +6,16 @@ Tests CRUD, generate, and submit operations under /api/coding.
 import unittest
 from unittest.mock import patch, MagicMock
 from bson import ObjectId
-from flask import Flask
+from fastapi.testclient import TestClient
 
-try:
-    from routes.coding_routes import coding_bp
-except ImportError:
-    from app.routes.coding_routes import coding_bp
+from app import app
 
 
 class TestCodingAPI(unittest.TestCase):
     """Test suite for /api/coding endpoints."""
 
     def setUp(self) -> None:
-        self.app = Flask(__name__)
-        self.app.register_blueprint(coding_bp, url_prefix="/api/coding")
-        self.client = self.app.test_client()
-
+        self.client = TestClient(app)
         self.mock_db = MagicMock()
         self.mock_col = MagicMock()
         self.mock_db.coding_questions = self.mock_col
@@ -54,7 +48,7 @@ class TestCodingAPI(unittest.TestCase):
 
         res = self.client.post("/api/coding", json=payload)
         self.assertEqual(res.status_code, 201)
-        data = res.get_json()
+        data = res.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["question_id"], str(fake_id))
 
@@ -82,7 +76,7 @@ class TestCodingAPI(unittest.TestCase):
 
         res = self.client.post("/api/coding/submit", json=payload)
         self.assertEqual(res.status_code, 200)
-        data = res.get_json()
+        data = res.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["score"], 10)
         self.assertEqual(data["percentage"], 100)

@@ -5,26 +5,18 @@ FastAPI APIRouter for the Live Proctoring module.
 
 import logging
 from typing import Optional
+from datetime import datetime
+from bson import ObjectId
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 
-from datetime import datetime
-
-try:
-    from config.database import Database
-    from app.controllers.proctoring_controller import ProctoringController
-    from middleware.jwt_utils import decode_token
-    from schemas.proctoring_schema import (
-        ProctoringEventCreate,
-        ProctoringEventBatchCreate,
-    )
-except ImportError:
-    from app.config.database import Database
-    from app.controllers.proctoring_controller import ProctoringController
-    from app.middleware.jwt_utils import decode_token
-    from app.schemas.proctoring_schema import (
-        ProctoringEventCreate,
-        ProctoringEventBatchCreate,
-    )
+from app.config.database import Database
+from app.controllers.proctoring_controller import ProctoringController
+from app.utils.jwt_utils import decode_token
+from app.schemas.proctoring_schema import (
+    ProctoringEventCreate,
+    ProctoringEventBatchCreate,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +65,6 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         return _get_guest_user()
 
     try:
-        from bson import ObjectId
         user = db.users.find_one({"_id": ObjectId(payload["id"])})
         if not user:
             return _get_guest_user()

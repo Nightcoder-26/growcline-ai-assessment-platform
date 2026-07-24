@@ -91,6 +91,14 @@ def mock_db_global():
     global _current_mock_db
     _current_mock_db = MagicMock()
 
+    def _find_user(filter_dict=None, *args, **kwargs):
+        if filter_dict and isinstance(filter_dict, dict) and "_id" in filter_dict:
+            user_id = filter_dict["_id"]
+            return {"_id": user_id, "email": "test@example.com", "role": "candidate"}
+        return {"_id": ObjectId("aaaaaaaaaaaaaaaaaaaaaaaa"), "email": "candidate@growcline.com", "role": "candidate"}
+
+    _current_mock_db.users.find_one.side_effect = _find_user
+
     def get_active_mock():
         return _current_mock_db
 

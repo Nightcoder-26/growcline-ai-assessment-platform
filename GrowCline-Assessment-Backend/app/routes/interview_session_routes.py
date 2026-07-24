@@ -12,27 +12,20 @@ GET    /api/interview/proctoring/{sessionId}  — Live proctoring status
 GET    /api/interview/cheating/{sessionId}    — Live cheating risk status
 POST   /api/interview/end/{sessionId}         — End session (auto-runs analysis)
 GET    /api/interview-analytics/{sessionId}   — Fetch analytics report
-
-Note: The prefix /api/interview (singular) is intentional and matches the
-integration spec. It coexists peacefully with /api/interviews (plural) which
-is the existing AI Interview module router.
 """
 
 import logging
+from datetime import datetime
+from typing import Optional
+from bson import ObjectId
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from typing import Optional
 
-try:
-    from middleware.jwt_utils import decode_token
-    from config.database import Database
-    import services.interview_session_service as session_service
-except ImportError:
-    from app.middleware.jwt_utils import decode_token
-    from app.config.database import Database
-    import app.services.interview_session_service as session_service
+from app.utils.jwt_utils import decode_token
+from app.config.database import Database
+import app.services.interview_session_service as session_service
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +79,6 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         return _get_guest_user()
 
     try:
-        from bson import ObjectId
         user = db.users.find_one({"_id": ObjectId(payload["id"])})
         if not user:
             return _get_guest_user()
@@ -97,12 +89,6 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         }
     except Exception:
         return _get_guest_user()
-
-    return {
-        "id":    payload.get("id"),
-        "email": payload.get("email"),
-        "role":  payload.get("role"),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -126,23 +112,11 @@ class StartSessionRequest(BaseModel):
 @router.post(
     "/start",
     summary="Start a unified interview session",
-    description=(
-        "Creates an interview session and simultaneously initialises "
-        "recording, live proctoring, and cheating detection. "
-        "Returns sessionId (MongoDB ObjectId) and status='Running'."
-    ),
 )
 async def start_session(
     body: StartSessionRequest,
     current_user: dict = Depends(get_current_user),
 ) -> JSONResponse:
-    """
-    POST /api/interview/start
-
-    Orchestrates:
-      1. interview_service.create_interview() — session + first AI question
-      2. proctoring_service PROCTORING_STARTED event
-    """
     try:
         user_id = str(current_user["id"])
 
@@ -187,21 +161,11 @@ async def start_session(
 @router.get(
     "/proctoring/{session_id}",
     summary="Get live proctoring status for a session",
-    description=(
-        "Returns the live proctoring status derived from the most recent "
-        "proctoring events: face detection, microphone, fullscreen, and network."
-    ),
 )
 async def get_proctoring_status(
     session_id: str,
     current_user: dict = Depends(get_current_user),
 ) -> JSONResponse:
-    """
-    GET /api/interview/proctoring/{sessionId}
-
-    Reads the last 30 proctoring events and derives:
-      { faceDetected, microphone, fullscreen, network, alerts, logs }
-    """
     try:
         user_id = str(current_user["id"])
 
@@ -236,22 +200,11 @@ async def get_proctoring_status(
 @router.get(
     "/cheating/{session_id}",
     summary="Get live cheating detection risk status for a session",
-    description=(
-        "Returns a live cheating risk summary computed from accumulated "
-        "proctoring events. Does NOT write a report — read-only live view."
-    ),
 )
 async def get_cheating_status(
     session_id: str,
     current_user: dict = Depends(get_current_user),
 ) -> JSONResponse:
-    """
-    GET /api/interview/cheating/{sessionId}
-
-    Aggregates current event counts and runs the deterministic risk engine:
-      { riskScore, multipleFaces, tabSwitches, faceMissing,
-        microphoneViolations, fullscreenExits, recommendation }
-    """
     try:
         user_id = str(current_user["id"])
 
@@ -286,25 +239,11 @@ async def get_cheating_status(
 @router.post(
     "/end/{session_id}",
     summary="End a unified interview session",
-    description=(
-        "Stops the interview recording, fires PROCTORING_STOPPED, "
-        "auto-runs cheating detection analysis, and auto-generates analytics. "
-        "Returns { sessionId, status, summary, analyticsId }."
-    ),
 )
 async def end_session(
     session_id: str,
     current_user: dict = Depends(get_current_user),
 ) -> JSONResponse:
-    """
-    POST /api/interview/end/{sessionId}
-
-    Orchestrates:
-      1. interview_service.end_interview() — marks COMPLETED
-      2. PROCTORING_STOPPED event
-      3. Internal cheating analysis (bypasses admin guard — trusted call)
-      4. Analytics generation
-    """
     try:
         user_id = str(current_user["id"])
 
@@ -350,10 +289,6 @@ async def end_session(
 @analytics_router.get(
     "/{session_id}",
     summary="Fetch interview analytics report",
-    description=(
-        "Returns the analytics report in the exact shape expected by the "
-        "InterviewAnalyticsClient frontend component."
-    ),
 )
 async def get_interview_analytics(
     session_id: str,

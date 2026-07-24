@@ -53,13 +53,16 @@ def _make_app():
     return app_mod.app
 
 
-def _auth_header(user_id="aaaaaaaaaaaaaaaaaaaaaaaa", role="admin"):
+def _auth_header(user_id=None, role="admin"):
     """Return an Authorization header with a valid test JWT."""
     import jwt as pyjwt
     from app.config.settings import Config
 
+    if user_id is None:
+        user_id = "cccccccccccccccccccccccc" if role == "candidate" else "aaaaaaaaaaaaaaaaaaaaaaaa"
+
     token = pyjwt.encode(
-        {"id": user_id, "email": "admin@example.com", "role": role},
+        {"id": user_id, "email": f"{role}@example.com", "role": role},
         Config.JWT_SECRET or "test-secret",
         algorithm="HS256",
     )
@@ -95,6 +98,15 @@ def mock_db_global():
     """
     global _current_mock_db
     _current_mock_db = MagicMock()
+
+    def _find_user(filter_dict=None, *args, **kwargs):
+        if filter_dict and isinstance(filter_dict, dict) and "_id" in filter_dict:
+            user_id = str(filter_dict["_id"])
+            role = "candidate" if user_id == "cccccccccccccccccccccccc" else "admin"
+            return {"_id": filter_dict["_id"], "email": f"{role}@example.com", "role": role}
+        return {"_id": ObjectId("aaaaaaaaaaaaaaaaaaaaaaaa"), "email": "admin@example.com", "role": "admin"}
+
+    _current_mock_db.users.find_one.side_effect = _find_user
 
     def get_active_mock():
         return _current_mock_db

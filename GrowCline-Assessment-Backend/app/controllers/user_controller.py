@@ -6,10 +6,7 @@ Architecture: Controller -> Service -> Model
 
 from marshmallow import ValidationError
 
-try:
-    from services.user_service import UserService
-except ImportError:
-    from app.services.user_service import UserService
+from app.services.user_service import UserService
 
 
 def _format_validation_error(error: ValidationError) -> str:

@@ -9,25 +9,10 @@ from typing import List, Dict, Any, Optional
 from bson import ObjectId
 from marshmallow import ValidationError
 
-try:
-    from config.database import Database
-except ImportError:
-    from app.config.database import Database
-
-try:
-    from models.user_model import User
-except ImportError:
-    from app.models.user_model import User
-
-try:
-    from schemas.user_schema import UserCreateSchema, UserUpdateSchema
-except ImportError:
-    from app.schemas.user_schema import UserCreateSchema, UserUpdateSchema
-
-try:
-    from utils.password_utils import hash_password
-except ImportError:
-    from app.utils.password_utils import hash_password
+from app.config.database import Database
+from app.models.user_model import User
+from app.schemas.user_schema import UserCreateSchema, UserUpdateSchema
+from app.utils.password_utils import hash_password
 
 
 class UserService:
