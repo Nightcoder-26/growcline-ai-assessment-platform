@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 try:
-    from controllers.result_controller import ResultController
+    from app.controllers.result_controller import ResultController
     from schemas.request_models import SaveResultRequest, UpdateResultRequest
 except ImportError:
     from app.controllers.result_controller import ResultController

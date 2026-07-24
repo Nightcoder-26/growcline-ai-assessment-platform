@@ -8,7 +8,7 @@ from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
 
 try:
-    from controllers.analytics_controller import AnalyticsController
+    from app.controllers.analytics_controller import AnalyticsController
     from schemas.request_models import DashboardAnalyticsRequest
 except ImportError:
     from app.controllers.analytics_controller import AnalyticsController

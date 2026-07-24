@@ -9,7 +9,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 try:
-    from controllers.assessment_controller import AssessmentController
+    from app.controllers.assessment_controller import AssessmentController
     from schemas.request_models import (
         AssessmentCreateRequest, AssessmentUpdateRequest, AssessmentSubmitRequest
     )

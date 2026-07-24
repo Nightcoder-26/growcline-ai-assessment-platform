@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 try:
-    from controllers.coding_controller import CodingController
+    from app.controllers.coding_controller import CodingController
     from schemas.request_models import (
         CodingQuestionRequest, CodingUpdateRequest,
         CodingGenerateRequest, CodingSubmitRequest
