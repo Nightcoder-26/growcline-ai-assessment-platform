@@ -3,21 +3,15 @@ Authentication Middleware Module
 Provides a FastAPI dependency to protect endpoints with JWT authentication.
 """
 
+from typing import Optional
 from fastapi import Header, HTTPException
 from bson import ObjectId
 
-try:
-    from utils.jwt_utils import decode_token
-except ImportError:
-    from app.utils.jwt_utils import decode_token
-
-try:
-    from config.database import Database
-except ImportError:
-    from app.config.database import Database
+from app.utils.jwt_utils import decode_token
+from app.config.database import Database
 
 
-async def get_current_user(authorization: str = Header(...)) -> dict:
+async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
     """
     FastAPI dependency that validates a Bearer JWT token from the Authorization header.
     Extracts the token, validates it, and verifies the user still exists in MongoDB.

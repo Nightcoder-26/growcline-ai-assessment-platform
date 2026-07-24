@@ -10,21 +10,16 @@ Routes:
 """
 
 import logging
-from fastapi import APIRouter, Depends, Header, HTTPException
-
 from datetime import datetime
 from typing import Optional
+from bson import ObjectId
 
-try:
-    from config.database import Database
-    from controllers.interview_analytics_controller import InterviewAnalyticsController
-    from middleware.jwt_utils import decode_token
-    from schemas.interview_analytics_schema import AnalyticsGenerateRequest
-except ImportError:
-    from app.config.database import Database
-    from app.controllers.interview_analytics_controller import InterviewAnalyticsController
-    from app.middleware.jwt_utils import decode_token
-    from app.schemas.interview_analytics_schema import AnalyticsGenerateRequest
+from fastapi import APIRouter, Depends, Header, HTTPException
+
+from app.config.database import Database
+from app.controllers.interview_analytics_controller import InterviewAnalyticsController
+from app.utils.jwt_utils import decode_token
+from app.schemas.interview_analytics_schema import AnalyticsGenerateRequest
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +68,6 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
         return _get_guest_user()
 
     try:
-        from bson import ObjectId
         user = db.users.find_one({"_id": ObjectId(payload["id"])})
         if not user:
             return _get_guest_user()
@@ -93,22 +87,13 @@ async def get_current_user(authorization: Optional[str] = Header(None)) -> dict:
 @router.post("/interview/{interview_id}/generate")
 async def generate_analytics(
     interview_id: str,
-    body: AnalyticsGenerateRequest = None,
+    body: Optional[AnalyticsGenerateRequest] = None,
     current_user: dict = Depends(get_current_user),
 ):
     """
     POST /api/analytics/interview/{interview_id}/generate
 
     Generate an analytics report for the completed interview.
-
-    Steps:
-        1. Authenticate via JWT.
-        2. Validate interview exists and is completed.
-        3. Verify ownership / admin access.
-        4. Guard against duplicate generation (unless force_refresh=True).
-        5. Fetch recording, proctoring, and cheating data.
-        6. Compute metrics and persist to interview_analytics.
-        7. Return the generated report.
     """
     force_refresh = body.force_refresh if body else False
     return await InterviewAnalyticsController.generate_analytics(

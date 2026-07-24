@@ -2,13 +2,16 @@
 MongoDB Atlas Configuration
 """
 
+import logging
+import sys
+import io
 from pymongo import MongoClient, ASCENDING, DESCENDING
 from pymongo.errors import ConnectionFailure, PyMongoError
 
 from app.config.settings import Config
-import sys
-import io
 
+logger = logging.getLogger("growcline.database")
+logging.basicConfig(level=logging.INFO)
 
 if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
     try:
@@ -27,7 +30,7 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
 
 
 class Database:
-    """MongoDB Database Connection"""
+    """MongoDB Database Connection Manager"""
 
     client = None
     db = None
@@ -59,16 +62,16 @@ class Database:
             cls.init_collections()
             cls.init_indexes()
 
-            print("✅ MongoDB Atlas Connected Successfully")
-            print(f"📊 Active Database: {cls.db.name}")
+            logger.info("MongoDB Atlas Connected Successfully")
+            logger.info(f"Active Database: {cls.db.name}")
 
             return cls.db
 
         except ConnectionFailure as error:
-            print(f"❌ MongoDB Connection Failed: {error}")
+            logger.error(f"MongoDB Connection Failed: {error}")
             raise
         except PyMongoError as error:
-            print(f"❌ MongoDB Error: {error}")
+            logger.error(f"MongoDB Error: {error}")
             raise
 
     @classmethod
@@ -102,12 +105,10 @@ class Database:
             for collection_name in required_collections:
                 if collection_name not in existing:
                     cls.db.create_collection(collection_name)
-                    print(f"📦 Created collection: '{collection_name}'")
+                    logger.info(f"Created collection: '{collection_name}'")
 
         except PyMongoError as error:
-            print(
-                f"⚠️ Warning: Could not initialize collections: {error}"
-            )
+            logger.warning(f"Could not initialize collections: {error}")
 
     @classmethod
     def init_indexes(cls):
@@ -212,12 +213,10 @@ class Database:
                 name="idx_interview_analytics_user_created",
             )
 
-            print("🔎 Team B MongoDB indexes initialized")
+            logger.info("Team B MongoDB indexes initialized")
 
         except PyMongoError as error:
-            print(
-                f"⚠️ Warning: Could not initialize indexes: {error}"
-            )
+            logger.warning(f"Could not initialize indexes: {error}")
 
     @classmethod
     def get_db(cls):
@@ -230,4 +229,4 @@ class Database:
     def close_connection(cls):
         if cls.client:
             cls.client.close()
-            print("🔒 MongoDB Connection Closed")
+            logger.info("MongoDB Connection Closed")

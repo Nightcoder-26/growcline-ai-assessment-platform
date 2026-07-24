@@ -354,6 +354,9 @@ class UpdateResultRequest(BaseModel):
 class DashboardAnalyticsRequest(BaseModel):
     userId: Optional[str] = None
 
-    model_config = {"json_schema_extra": {
-        "example": {"userId": "user123"}
-    }}
+    model_config = {
+        "extra": "allow",
+        "json_schema_extra": {
+            "example": {"userId": "user123"}
+        }
+    }

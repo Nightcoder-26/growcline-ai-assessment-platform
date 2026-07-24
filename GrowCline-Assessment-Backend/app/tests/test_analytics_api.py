@@ -6,25 +6,20 @@ Tests POST and GET on /api/analytics/dashboard/<user_id>.
 import unittest
 from unittest.mock import patch, MagicMock
 from bson import ObjectId
-from flask import Flask
+from fastapi.testclient import TestClient
 
-try:
-    from routes.analytics_routes import analytics_bp
-except ImportError:
-    from app.routes.analytics_routes import analytics_bp
+from app import app
 
 
 class TestAnalyticsAPI(unittest.TestCase):
     """Test suite for /api/analytics endpoints."""
 
     def setUp(self) -> None:
-        self.app = Flask(__name__)
-        self.app.register_blueprint(analytics_bp, url_prefix="/api/analytics")
-        self.client = self.app.test_client()
-
+        self.client = TestClient(app)
         self.mock_db = MagicMock()
         self.mock_col = MagicMock()
         self.mock_db.analytics = self.mock_col
+        self.mock_db.dashboard_analytics = self.mock_col
 
     @patch("app.config.database.Database.get_db")
     def test_post_user_dashboard_analytics(self, mock_get_db: MagicMock) -> None:
@@ -47,7 +42,7 @@ class TestAnalyticsAPI(unittest.TestCase):
 
         res = self.client.post(f"/api/analytics/dashboard/{user_id}", json=payload)
         self.assertEqual(res.status_code, 200)
-        data = res.get_json()
+        data = res.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["data"]["strongestSkill"], "Technical")
 

@@ -8,15 +8,8 @@ from datetime import datetime
 from bson import ObjectId
 from bson.errors import InvalidId
 
-try:
-    from config.database import Database
-except ImportError:
-    from app.config.database import Database
-
-try:
-    from models.cheating_report_model import CheatingReport
-except ImportError:
-    from app.models.cheating_report_model import CheatingReport
+from app.config.database import Database
+from app.models.cheating_report_model import CheatingReport
 
 
 logger = logging.getLogger(__name__)
@@ -201,6 +194,8 @@ def analyze_interview(interview_id: str, user_role: str) -> dict:
         for k, v in event_counts.items()
         if v > 0
     ]
+
+    now = datetime.utcnow()
 
     report_data = {
         "interviewId": interview_oid,

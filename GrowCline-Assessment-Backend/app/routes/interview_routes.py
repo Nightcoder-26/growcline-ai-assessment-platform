@@ -3,8 +3,6 @@ Interview Routes
 FastAPI APIRouter for the AI Interview module.
 
 Registers all seven interview endpoints under the /api/interviews prefix.
-Follows the exact same pattern as the existing recording_routes.py and
-proctoring_routes.py used by Team B.
 
 Endpoints
 ---------
@@ -18,28 +16,21 @@ GET    /api/interviews/user/{user_id}          — List all interviews for a use
 """
 
 import logging
+from typing import Optional
+from datetime import datetime
+from bson import ObjectId
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
 
-try:
-    from controllers.interview_controller import InterviewController
-    from middleware.jwt_utils import decode_token
-    from config.database import Database
-    from schemas.interview_schema import (
-        InterviewCreateRequest,
-        QuestionRequest,
-        AnswerRequest,
-    )
-except ImportError:
-    from app.controllers.interview_controller import InterviewController
-    from app.middleware.jwt_utils import decode_token
-    from app.config.database import Database
-    from app.schemas.interview_schema import (
-        InterviewCreateRequest,
-        QuestionRequest,
-        AnswerRequest,
-    )
+from app.controllers.interview_controller import InterviewController
+from app.utils.jwt_utils import decode_token
+from app.config.database import Database
+from app.schemas.interview_schema import (
+    InterviewCreateRequest,
+    QuestionRequest,
+    AnswerRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -88,7 +79,6 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
         return _get_guest_user()
 
     try:
-        from bson import ObjectId
         user = db.users.find_one({"_id": ObjectId(payload["id"])})
         if not user:
             return _get_guest_user()
@@ -100,19 +90,10 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
     except Exception:
         return _get_guest_user()
 
-    return {
-        "id":    payload.get("id"),
-        "email": payload.get("email"),
-        "role":  payload.get("role"),
-    }
-
 
 # ---------------------------------------------------------------------------
 # Routes
 # ---------------------------------------------------------------------------
-
-# NOTE: The /user/{user_id} route MUST be registered before /{interview_id}
-# to prevent FastAPI from treating "user" as an interview_id path segment.
 
 @router.get("/user/{user_id}", summary="List all interviews for a user")
 async def get_user_interviews(
@@ -123,7 +104,7 @@ async def get_user_interviews(
     GET /api/interviews/user/{user_id}
 
     Returns all interview sessions belonging to the specified user,
-    ordered from newest to oldest.  A candidate may only retrieve their
+    ordered from newest to oldest. A candidate may only retrieve their
     own interview list.
     """
     return await InterviewController.get_user_interviews(
@@ -139,18 +120,6 @@ async def start_interview(
 ):
     """
     POST /api/interviews/start
-
-    Creates a new interview session for the authenticated candidate,
-    generates the first AI question, and returns both the session metadata
-    and the opening question.
-
-    **Body fields**
-    - `jobRole` (required)  — Target job role, e.g. "Backend Developer"
-    - `interviewType` (required) — TECHNICAL | HR | BEHAVIORAL | RESUME_BASED
-    - `difficulty` (optional, default MEDIUM) — EASY | MEDIUM | HARD
-    - `totalQuestions` (optional, default 10) — 1–20
-    - `durationSeconds` (optional, default 1800) — 300–7200
-    - `resumeId` (optional) — Required when interviewType is RESUME_BASED
     """
     return await InterviewController.start_interview(
         body=body.model_dump(),
@@ -166,12 +135,6 @@ async def get_next_question(
 ):
     """
     POST /api/interviews/{interview_id}/question
-
-    Generates and persists the next AI question for an active interview session.
-    Validates session ownership, status, and timer before calling the AI.
-
-    **Body fields**
-    - `topicHint` (optional) — Guide the AI toward a specific sub-topic
     """
     return await InterviewController.get_next_question(
         interview_id=interview_id,
@@ -188,13 +151,6 @@ async def submit_answer(
 ):
     """
     POST /api/interviews/{interview_id}/answer
-
-    Accepts the candidate's answer to a specific question, evaluates it
-    using the Groq AI, and persists the evaluation result.
-
-    **Body fields**
-    - `questionId` (required) — ObjectId of the question being answered
-    - `candidateAnswer` (required) — The candidate's answer text (1–5000 chars)
     """
     return await InterviewController.submit_answer(
         interview_id=interview_id,
@@ -210,9 +166,6 @@ async def get_interview(
 ):
     """
     GET /api/interviews/{interview_id}
-
-    Returns the interview session document (metadata only).
-    Does not include questions or answers — use /history for the full record.
     """
     return await InterviewController.get_interview(
         interview_id=interview_id,
@@ -227,15 +180,6 @@ async def get_interview_history(
 ):
     """
     GET /api/interviews/{interview_id}/history
-
-    Returns the complete question-answer-evaluation history for an interview,
-    including AI scores, feedback, strengths, weaknesses, and suggestions.
-
-    This endpoint provides the data consumed by:
-    - Video Recording module (attaches recordings to interview sessions)
-    - Live Proctoring module (correlates events to session timeline)
-    - Cheating Detection module (analyses event patterns)
-    - Interview Analytics module (generates the final interview report)
     """
     return await InterviewController.get_interview_history(
         interview_id=interview_id,
@@ -250,10 +194,6 @@ async def end_interview(
 ):
     """
     POST /api/interviews/{interview_id}/end
-
-    Marks the interview as COMPLETED, records the end time,
-    and returns a summary with overall statistics (average score,
-    questions answered, actual duration).
     """
     return await InterviewController.end_interview(
         interview_id=interview_id,

@@ -7,14 +7,9 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from typing import Optional
 
-try:
-    from config.database import Database
-    from services.assessment_service import AssessmentService
-    from models.assessment_model import Assessment
-except ImportError:
-    from app.config.database import Database
-    from app.services.assessment_service import AssessmentService
-    from app.models.assessment_model import Assessment
+from app.config.database import Database
+from app.services.assessment_service import AssessmentService
+from app.models.assessment_model import Assessment
 
 
 class AssessmentController:

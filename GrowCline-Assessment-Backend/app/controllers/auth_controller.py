@@ -1,22 +1,15 @@
 """
 Authentication Controller Module
-Handles user registration, login, and profile retrieval.
+Handles user registration, login, profile management, and password updates.
 """
 
 from datetime import datetime, timezone
+from typing import Dict, Tuple, Optional, Any
 from bson import ObjectId
 
-try:
-    from config.database import Database
-except ImportError:
-    from app.config.database import Database
-
-try:
-    from utils.password_utils import hash_password, verify_password
-    from utils.jwt_utils import generate_token
-except ImportError:
-    from app.utils.password_utils import hash_password, verify_password
-    from app.utils.jwt_utils import generate_token
+from app.config.database import Database
+from app.utils.password_utils import hash_password, verify_password
+from app.utils.jwt_utils import generate_token
 
 
 def serialize_user(user: dict) -> dict:
@@ -24,7 +17,7 @@ def serialize_user(user: dict) -> dict:
     Serialize a user MongoDB document for JSON responses.
     Excludes sensitive fields like password.
     """
-    serialized = {}
+    serialized: Dict[str, Any] = {}
     for key, value in user.items():
         if key == "password":
             continue
@@ -46,7 +39,7 @@ class AuthController:
     """Authentication Controller"""
 
     @staticmethod
-    def register(data: dict) -> tuple[dict, int]:
+    def register(data: dict) -> Tuple[dict, int]:
         """
         POST /api/auth/register
         Registers a new candidate user with bcrypt password hashing.
@@ -113,7 +106,7 @@ class AuthController:
             }, 500
 
     @staticmethod
-    def login(data: dict) -> tuple[dict, int]:
+    def login(data: dict) -> Tuple[dict, int]:
         """
         POST /api/auth/login
         Validates user credentials and returns a JWT access token.
@@ -165,7 +158,7 @@ class AuthController:
             }, 500
 
     @staticmethod
-    def get_profile(current_user: dict = None, user_id: str = None) -> tuple[dict, int]:
+    def get_profile(current_user: Optional[dict] = None, user_id: Optional[str] = None) -> Tuple[dict, int]:
         """
         GET /api/auth/profile
         Returns the profile of the currently authenticated user.
@@ -197,7 +190,7 @@ class AuthController:
             }, 500
 
     @staticmethod
-    def update_profile(data: dict, current_user: dict = None, user_id: str = None) -> tuple[dict, int]:
+    def update_profile(data: dict, current_user: Optional[dict] = None, user_id: Optional[str] = None) -> Tuple[dict, int]:
         """
         PUT /api/auth/profile
         Updates candidate profile information.
@@ -240,7 +233,7 @@ class AuthController:
             }, 500
 
     @staticmethod
-    def change_password(data: dict, current_user: dict = None, user_id: str = None) -> tuple[dict, int]:
+    def change_password(data: dict, current_user: Optional[dict] = None, user_id: Optional[str] = None) -> Tuple[dict, int]:
         """
         PUT /api/auth/change-password
         Changes the candidate password after verifying current password.

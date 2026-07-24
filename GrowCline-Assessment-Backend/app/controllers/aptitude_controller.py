@@ -7,12 +7,8 @@ from datetime import datetime, timezone
 from bson import ObjectId
 from typing import Optional
 
-try:
-    from config.database import Database
-    from models.aptitude_question_model import AptitudeQuestion
-except ImportError:
-    from app.config.database import Database
-    from app.models.aptitude_question_model import AptitudeQuestion
+from app.config.database import Database
+from app.models.aptitude_question_model import AptitudeQuestion
 
 
 class AptitudeController:

@@ -7,20 +7,12 @@ from typing import Optional
 from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
-try:
-    from controllers.auth_controller import AuthController
-    from middleware.auth_middleware import get_current_user
-    from schemas.request_models import (
-        RegisterRequest, LoginRequest,
-        UpdateProfileRequest, ChangePasswordRequest
-    )
-except ImportError:
-    from app.controllers.auth_controller import AuthController
-    from app.middleware.auth_middleware import get_current_user
-    from app.schemas.request_models import (
-        RegisterRequest, LoginRequest,
-        UpdateProfileRequest, ChangePasswordRequest
-    )
+from app.controllers.auth_controller import AuthController
+from app.middleware.auth_middleware import get_current_user
+from app.schemas.request_models import (
+    RegisterRequest, LoginRequest,
+    UpdateProfileRequest, ChangePasswordRequest
+)
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -82,5 +74,5 @@ async def change_password(
     return JSONResponse(content=result, status_code=status_code)
 
 
-# Backward-compatible alias
+# Backward-compatible alias for test imports
 auth_bp = router

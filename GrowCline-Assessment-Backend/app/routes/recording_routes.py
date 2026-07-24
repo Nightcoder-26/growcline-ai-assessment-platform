@@ -5,20 +5,15 @@ FastAPI APIRouter for the Video Recording module.
 
 import logging
 from typing import Optional
+from datetime import datetime
+from bson import ObjectId
 
 from fastapi import APIRouter, Depends, File, Form, UploadFile, HTTPException, Header
 from fastapi.responses import JSONResponse
 
-from datetime import datetime
-
-try:
-    from config.database import Database
-    from controllers.recording_controller import RecordingController
-    from middleware.jwt_utils import decode_token
-except ImportError:
-    from app.config.database import Database
-    from app.controllers.recording_controller import RecordingController
-    from app.middleware.jwt_utils import decode_token
+from app.config.database import Database
+from app.controllers.recording_controller import RecordingController
+from app.utils.jwt_utils import decode_token
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +62,6 @@ async def get_current_user(authorization: Optional[str] = Header(None)):
         return _get_guest_user()
 
     try:
-        from bson import ObjectId
         user = db.users.find_one({"_id": ObjectId(payload["id"])})
         if not user:
             return _get_guest_user()

@@ -7,26 +7,18 @@ import unittest
 from unittest.mock import patch, MagicMock
 from datetime import datetime, timezone
 from bson import ObjectId
-from flask import Flask
+from fastapi.testclient import TestClient
 
-try:
-    from routes.user_routes import user_bp
-    from models.user_model import User
-    from utils.jwt_utils import generate_token
-except ImportError:
-    from app.routes.user_routes import user_bp
-    from app.models.user_model import User
-    from app.utils.jwt_utils import generate_token
+from app import app
+from app.models.user_model import User
+from app.utils.jwt_utils import generate_token
 
 
 class TestUserCRUDAPI(unittest.TestCase):
     """Test suite for User Management CRUD API endpoints."""
 
     def setUp(self):
-        self.app = Flask(__name__)
-        self.app.register_blueprint(user_bp, url_prefix="/api/users")
-        self.client = self.app.test_client()
-
+        self.client = TestClient(app)
 
         self.mock_db = MagicMock()
         self.users_collection = MagicMock()
@@ -63,7 +55,7 @@ class TestUserCRUDAPI(unittest.TestCase):
 
         response = self.client.post("/api/users", json=payload)
         self.assertEqual(response.status_code, 201)
-        data = response.get_json()
+        data = response.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["message"], "User created successfully.")
         self.assertEqual(data["data"]["email"], "vasant@gmail.com")
@@ -83,7 +75,7 @@ class TestUserCRUDAPI(unittest.TestCase):
 
         response = self.client.post("/api/users", json=payload)
         self.assertEqual(response.status_code, 400)
-        data = response.get_json()
+        data = response.json()
         self.assertFalse(data["success"])
         self.assertIn("Email already exists", data["message"])
 
@@ -95,7 +87,7 @@ class TestUserCRUDAPI(unittest.TestCase):
 
         response = self.client.get("/api/users")
         self.assertEqual(response.status_code, 200)
-        data = response.get_json()
+        data = response.json()
         self.assertTrue(data["success"])
         self.assertIsInstance(data["data"], list)
         self.assertEqual(len(data["data"]), 1)
@@ -108,7 +100,7 @@ class TestUserCRUDAPI(unittest.TestCase):
 
         response = self.client.get(f"/api/users/{self.test_user_id}")
         self.assertEqual(response.status_code, 200)
-        data = response.get_json()
+        data = response.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["data"]["id"], self.test_user_id)
 
@@ -117,7 +109,7 @@ class TestUserCRUDAPI(unittest.TestCase):
         """Test GET /api/users/<user_id> with invalid ObjectId returns 400."""
         response = self.client.get("/api/users/invalid_id")
         self.assertEqual(response.status_code, 400)
-        data = response.get_json()
+        data = response.json()
         self.assertFalse(data["success"])
 
     @patch("app.middleware.auth_middleware.Database.get_db")
@@ -142,7 +134,7 @@ class TestUserCRUDAPI(unittest.TestCase):
             json={"fullName": "Updated Name", "role": "admin"}
         )
         self.assertEqual(response_auth.status_code, 200)
-        data = response_auth.get_json()
+        data = response_auth.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["message"], "User updated successfully.")
 
@@ -164,7 +156,7 @@ class TestUserCRUDAPI(unittest.TestCase):
             headers=self.auth_headers
         )
         self.assertEqual(response_auth.status_code, 200)
-        data = response_auth.get_json()
+        data = response_auth.json()
         self.assertTrue(data["success"])
         self.assertEqual(data["message"], "User deleted successfully.")
 
