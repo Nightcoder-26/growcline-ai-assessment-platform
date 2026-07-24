@@ -89,5 +89,9 @@ class Recording:
 
             "duration": recording.get("duration"),
 
-            "createdAt": recording.get("createdAt"),
+            "videoUrl": recording.get("videoUrl"),
+
+            "audioUrl": recording.get("audioUrl"),
+
+            "createdAt": recording.get("createdAt").isoformat() if recording.get("createdAt") else None,
         }

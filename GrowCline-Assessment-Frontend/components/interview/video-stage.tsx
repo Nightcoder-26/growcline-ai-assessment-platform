@@ -24,6 +24,8 @@ interface VideoStageProps {
   onToggleCam: () => void;
   onToggleMic: () => void;
   onFacePresenceChange?: (detected: boolean) => void;
+  /** Fires when two or more distinct face regions are detected in frame. */
+  onMultipleFacesDetected?: () => void;
 }
 
 export function VideoStage({
@@ -38,12 +40,13 @@ export function VideoStage({
   onToggleCam,
   onToggleMic,
   onFacePresenceChange,
+  onMultipleFacesDetected,
 }: VideoStageProps) {
   const live = recording && !paused;
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [internalFaceDetected, setInternalFaceDetected] = useState(true);
 
-  // Periodic Face / Subject Presence Check via Canvas Pixel Variance Analysis
+  // Periodic Face / Subject Presence Check + Multiple-Face Detection via Canvas Pixel Analysis
   useEffect(() => {
     if (!camOn) {
       setInternalFaceDetected(false);
@@ -62,47 +65,88 @@ export function VideoStage({
           canvasRef.current = document.createElement("canvas");
         }
         const canvas = canvasRef.current;
-        canvas.width = 160;
-        canvas.height = 90;
+        const W = 160;
+        const H = 90;
+        canvas.width = W;
+        canvas.height = H;
         const ctx = canvas.getContext("2d", { willReadFrequently: true });
         if (!ctx) return;
 
-        ctx.drawImage(img, 0, 0, 160, 90);
-        const imageData = ctx.getImageData(0, 0, 160, 90);
+        ctx.drawImage(img, 0, 0, W, H);
+        const imageData = ctx.getImageData(0, 0, W, H);
         const data = imageData.data;
 
         let totalLuma = 0;
         let skinLikePixels = 0;
 
+        // Divide frame into a 4×2 grid of zones for spatial clustering
+        const COLS = 4;
+        const ROWS = 2;
+        const zoneCounts: number[][] = Array.from({ length: ROWS }, () =>
+          new Array(COLS).fill(0)
+        );
+
         for (let i = 0; i < data.length; i += 4) {
           const r = data[i];
           const g = data[i + 1];
           const b = data[i + 2];
+          const pixIdx = i / 4;
+          const px = pixIdx % W;
+          const py = Math.floor(pixIdx / W);
 
           // Luma calculation
           const luma = 0.299 * r + 0.587 * g + 0.114 * b;
           totalLuma += luma;
 
-          // Simple skin tone heuristic range detection
-          if (r > 60 && g > 40 && b > 20 && r > g && r > b && Math.abs(r - g) > 15) {
+          // Skin-tone heuristic (handles varied ethnicities)
+          const isSkin =
+            r > 60 && g > 40 && b > 20 &&
+            r > g && r > b &&
+            Math.abs(r - g) > 10 &&
+            r - b > 10 &&
+            r < 250;
+
+          if (isSkin) {
             skinLikePixels++;
+            const col = Math.floor((px / W) * COLS);
+            const row = Math.floor((py / H) * ROWS);
+            zoneCounts[row][col]++;
           }
         }
 
-        const avgLuma = totalLuma / (data.length / 4);
-        const skinRatio = skinLikePixels / (data.length / 4);
+        const totalPixels = data.length / 4;
+        const avgLuma = totalLuma / totalPixels;
+        const skinRatio = skinLikePixels / totalPixels;
 
-        // Subject is away if room is completely dark or skin/face luminance is below threshold
+        // Subject is present when room isn't completely dark and enough skin detected
         const isPresent = avgLuma > 12 && skinRatio > 0.04;
-
         setInternalFaceDetected(isPresent);
         onFacePresenceChange?.(isPresent);
+
+        // ── Multiple-face detection ───────────────────────────────────────────
+        // Count non-adjacent zones that have meaningful skin concentrations.
+        // Threshold: zone must contain at least 1% of all skin pixels.
+        const zoneThreshold = Math.max(1, skinLikePixels * 0.01);
+        let activeCols: number[] = [];
+        zoneCounts.forEach((row) => {
+          row.forEach((count, col) => {
+            if (count >= zoneThreshold && !activeCols.includes(col)) {
+              activeCols.push(col);
+            }
+          });
+        });
+
+        // Two or more distinct horizontal regions → multiple faces detected
+        const multipleFacesDetected = isPresent && activeCols.length >= 2;
+        if (multipleFacesDetected) {
+          onMultipleFacesDetected?.();
+        }
       };
       img.src = screenshot;
     }, 2000);
 
     return () => clearInterval(interval);
-  }, [camOn, webcamRef, onFacePresenceChange]);
+  }, [camOn, webcamRef, onFacePresenceChange, onMultipleFacesDetected]);
 
   const isWarningActive = !camOn || !faceDetected || !internalFaceDetected;
 

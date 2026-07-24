@@ -3,18 +3,20 @@ Recording Service
 Business logic for the Video Recording module.
 
 Responsibilities:
-- S3 client initialisation and access
+- S3 client initialisation and access (with local-file fallback when S3 not configured)
 - Media file validation (MIME type, size, emptiness)
-- Collision-safe S3 object key generation
-- Streaming upload to AWS S3 via upload_fileobj
+- Collision-safe S3 object key / local-path generation
+- Streaming upload to AWS S3 via upload_fileobj OR local disk
 - S3 object deletion and partial-failure cleanup
 - Temporary presigned GET URL generation
 - Interview existence and ownership validation
 - Recording document creation and retrieval
-- Recording deletion with consistent S3 cleanup
+- Recording deletion with consistent S3 / local cleanup
 """
 
 import logging
+import os
+import shutil
 import uuid
 from datetime import datetime
 
@@ -42,6 +44,19 @@ except ImportError:
 
 
 logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# Storage mode detection
+# ---------------------------------------------------------------------------
+
+def _s3_configured():
+    """Return True when all four required AWS settings are present and non-empty."""
+    return all([
+        getattr(Config, "AWS_ACCESS_KEY_ID", None),
+        getattr(Config, "AWS_SECRET_ACCESS_KEY", None),
+        getattr(Config, "AWS_REGION", None),
+        getattr(Config, "AWS_S3_BUCKET", None),
+    ])
 
 # ---------------------------------------------------------------------------
 # Allowed MIME types
@@ -405,14 +420,10 @@ def upload_recording(interview_id, user_id, video_file, audio_file, duration):
     Upload flow:
         1. Validate interview existence and ownership.
         2. Validate media files (MIME type, size, emptiness).
-        3. Generate S3 keys.
-        4. Upload media objects to S3.
-        5. Insert recording metadata into MongoDB.
-        6. Return serialised recording.
-
-    Consistency guarantee:
-        - If a video upload succeeds but audio fails, the video object is deleted.
-        - If both S3 uploads succeed but MongoDB insert fails, both objects are deleted.
+        3. If S3 is configured → upload to S3 and store S3 keys.
+           If S3 is NOT configured → save files to local uploads/recordings/ directory.
+        4. Insert recording metadata into MongoDB.
+        5. Return serialised recording.
 
     Args:
         interview_id: str — parent interview ObjectId string.
@@ -426,7 +437,7 @@ def upload_recording(interview_id, user_id, video_file, audio_file, duration):
 
     Raises:
         ValueError: for validation failures (400-level errors).
-        RuntimeError: for S3/configuration failures (500-level errors).
+        RuntimeError: for storage/configuration failures (500-level errors).
     """
     if video_file is None and audio_file is None:
         raise ValueError("At least one media file (video or audio) must be provided.")
@@ -448,49 +459,116 @@ def upload_recording(interview_id, user_id, video_file, audio_file, duration):
     if audio_file is not None:
         _validate_media_file(audio_file, ALLOWED_AUDIO_MIME_TYPES, "audio", max_size_bytes)
 
-    s3_client = _get_s3_client()
-    bucket = _get_s3_bucket()
-
     video_key = None
     audio_key = None
+    video_url = None
+    audio_url = None
 
-    if video_file is not None:
-        v_content_type = video_file.content_type.lower().split(";")[0].strip()
-        v_ext = _resolve_extension(v_content_type)
-        video_key = _build_s3_key(user_id, interview_id, "video", v_ext)
+    if _s3_configured():
+        # ── S3 upload path ────────────────────────────────────────────────────
+        s3_client = _get_s3_client()
+        bucket = _get_s3_bucket()
 
-        try:
-            _upload_to_s3(s3_client, bucket, video_key, video_file, v_content_type)
-        except (BotoCoreError, ClientError) as exc:
-            logger.error("S3 video upload failed for interview %s: %s", interview_id, exc)
-            raise RuntimeError("Video upload to storage failed. Please try again.") from exc
+        if video_file is not None:
+            v_content_type = video_file.content_type.lower().split(";")[0].strip()
+            v_ext = _resolve_extension(v_content_type)
+            video_key = _build_s3_key(user_id, interview_id, "video", v_ext)
 
-    if audio_file is not None:
-        a_content_type = audio_file.content_type.lower().split(";")[0].strip()
-        a_ext = _resolve_extension(a_content_type)
-        audio_key = _build_s3_key(user_id, interview_id, "audio", a_ext)
+            try:
+                _upload_to_s3(s3_client, bucket, video_key, video_file, v_content_type)
+            except (BotoCoreError, ClientError) as exc:
+                logger.error("S3 video upload failed for interview %s: %s", interview_id, exc)
+                raise RuntimeError("Video upload to storage failed. Please try again.") from exc
 
-        try:
-            _upload_to_s3(s3_client, bucket, audio_key, audio_file, a_content_type)
-        except (BotoCoreError, ClientError) as exc:
-            logger.error("S3 audio upload failed for interview %s: %s", interview_id, exc)
+        if audio_file is not None:
+            a_content_type = audio_file.content_type.lower().split(";")[0].strip()
+            a_ext = _resolve_extension(a_content_type)
+            audio_key = _build_s3_key(user_id, interview_id, "audio", a_ext)
 
-            if video_key:
-                cleaned = _delete_s3_object(s3_client, bucket, video_key)
-                if not cleaned:
-                    logger.error(
-                        "Orphaned S3 object could not be cleaned up after audio upload failure. "
-                        "Key: %s  Bucket: %s",
-                        video_key, bucket,
+            try:
+                _upload_to_s3(s3_client, bucket, audio_key, audio_file, a_content_type)
+            except (BotoCoreError, ClientError) as exc:
+                logger.error("S3 audio upload failed for interview %s: %s", interview_id, exc)
+
+                if video_key:
+                    cleaned = _delete_s3_object(s3_client, bucket, video_key)
+                    if not cleaned:
+                        logger.error(
+                            "Orphaned S3 object could not be cleaned up after audio upload failure. "
+                            "Key: %s  Bucket: %s",
+                            video_key, bucket,
+                        )
+
+                raise RuntimeError("Audio upload to storage failed. Please try again.") from exc
+
+    else:
+        # ── Local file system fallback (no S3 credentials configured) ─────────
+        logger.info(
+            "S3 not configured — saving recording for interview %s to local disk.",
+            interview_id,
+        )
+
+        upload_root = os.path.join(
+            getattr(Config, "UPLOAD_FOLDER", "uploads"),
+            "recordings",
+            user_id,
+            interview_id,
+        )
+        os.makedirs(upload_root, exist_ok=True)
+
+        if video_file is not None:
+            v_content_type = (video_file.content_type or "video/webm").lower().split(";")[0].strip()
+            v_ext = _resolve_extension(v_content_type)
+            v_filename = f"{uuid.uuid4().hex}.{v_ext}"
+            v_path = os.path.join(upload_root, v_filename)
+
+            try:
+                stream = _get_stream(video_file)
+                stream.seek(0)
+                with open(v_path, "wb") as f:
+                    shutil.copyfileobj(stream, f)
+                # Use relative path as the "key" so the document is portable
+                video_key = os.path.join("recordings", user_id, interview_id, v_filename)
+                video_url = f"/uploads/{video_key}"
+                logger.info("Video saved locally: %s", v_path)
+            except Exception as exc:
+                logger.error("Local video save failed for interview %s: %s", interview_id, exc)
+                raise RuntimeError("Video save to local storage failed. Please try again.") from exc
+
+        if audio_file is not None:
+            a_content_type = (audio_file.content_type or "audio/webm").lower().split(";")[0].strip()
+            a_ext = _resolve_extension(a_content_type)
+            a_filename = f"{uuid.uuid4().hex}.{a_ext}"
+            a_path = os.path.join(upload_root, a_filename)
+
+            try:
+                stream = _get_stream(audio_file)
+                stream.seek(0)
+                with open(a_path, "wb") as f:
+                    shutil.copyfileobj(stream, f)
+                audio_key = os.path.join("recordings", user_id, interview_id, a_filename)
+                audio_url = f"/uploads/{audio_key}"
+                logger.info("Audio saved locally: %s", a_path)
+            except Exception as exc:
+                logger.error("Local audio save failed for interview %s: %s", interview_id, exc)
+                # Clean up video if already saved
+                if video_key:
+                    local_v = os.path.join(
+                        getattr(Config, "UPLOAD_FOLDER", "uploads"), video_key
                     )
-
-            raise RuntimeError("Audio upload to storage failed. Please try again.") from exc
+                    try:
+                        os.remove(local_v)
+                    except OSError:
+                        pass
+                raise RuntimeError("Audio save to local storage failed. Please try again.") from exc
 
     recording_doc = Recording.create_recording(
         interview_id=interview_id,
         user_id=user_id,
         video_key=video_key,
         audio_key=audio_key,
+        video_url=video_url,
+        audio_url=audio_url,
         duration=duration,
     )
 
@@ -498,21 +576,31 @@ def upload_recording(interview_id, user_id, video_file, audio_file, duration):
         db[Recording.COLLECTION].insert_one(recording_doc)
     except Exception as exc:
         logger.error(
-            "MongoDB insert failed after S3 upload. Attempting S3 cleanup. Error: %s", exc
+            "MongoDB insert failed after storage upload. Error: %s", exc
         )
 
-        cleanup_failures = []
-        if video_key and not _delete_s3_object(s3_client, bucket, video_key):
-            cleanup_failures.append(video_key)
-        if audio_key and not _delete_s3_object(s3_client, bucket, audio_key):
-            cleanup_failures.append(audio_key)
-
-        if cleanup_failures:
-            logger.error(
-                "Orphaned S3 objects remain after MongoDB insert failure. "
-                "Keys: %s  Bucket: %s",
-                cleanup_failures, bucket,
-            )
+        if _s3_configured():
+            s3_client = _get_s3_client()
+            bucket = _get_s3_bucket()
+            cleanup_failures = []
+            if video_key and not _delete_s3_object(s3_client, bucket, video_key):
+                cleanup_failures.append(video_key)
+            if audio_key and not _delete_s3_object(s3_client, bucket, audio_key):
+                cleanup_failures.append(audio_key)
+            if cleanup_failures:
+                logger.error(
+                    "Orphaned S3 objects remain after MongoDB insert failure. "
+                    "Keys: %s  Bucket: %s",
+                    cleanup_failures, bucket,
+                )
+        else:
+            upload_folder = getattr(Config, "UPLOAD_FOLDER", "uploads")
+            for key in [video_key, audio_key]:
+                if key:
+                    try:
+                        os.remove(os.path.join(upload_folder, key))
+                    except OSError:
+                        pass
 
         raise RuntimeError("Recording metadata could not be saved. Please try again.") from exc
 

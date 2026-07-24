@@ -126,6 +126,11 @@ export function InterviewStudio() {
     }
   }, [logEvent, setProctoringStatus]);
 
+  // Handle Multiple Faces in Frame
+  const handleMultipleFacesDetected = useCallback(() => {
+    logEvent("MULTIPLE_FACES");
+  }, [logEvent]);
+
   // ── Clock ──────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -423,6 +428,7 @@ export function InterviewStudio() {
             onToggleCam={() => setCamOn((v) => !v)}
             onToggleMic={() => setMicOn((v) => !v)}
             onFacePresenceChange={handleFacePresenceChange}
+            onMultipleFacesDetected={handleMultipleFacesDetected}
           />
 
           <div className="flex flex-col gap-4">
