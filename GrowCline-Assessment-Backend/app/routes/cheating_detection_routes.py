@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, Header, HTTPException
 
 try:
     from config.database import Database
-    from controllers.cheating_detection_controller import CheatingDetectionController
+    from app.controllers.cheating_detection_controller import CheatingDetectionController
     from middleware.jwt_utils import decode_token
 except ImportError:
     from app.config.database import Database

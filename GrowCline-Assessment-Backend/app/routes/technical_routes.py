@@ -8,7 +8,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import JSONResponse
 
 try:
-    from controllers.technical_controller import TechnicalController
+    from app.controllers.technical_controller import TechnicalController
     from schemas.request_models import (
         TechnicalQuestionRequest, TechnicalUpdateRequest,
         TechnicalGenerateRequest, TechnicalSubmitRequest

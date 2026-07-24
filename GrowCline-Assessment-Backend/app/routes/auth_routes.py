@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 try:
-    from controllers.auth_controller import AuthController
+    from app.controllers.auth_controller import AuthController
     from middleware.auth_middleware import get_current_user
     from schemas.request_models import (
         RegisterRequest, LoginRequest,

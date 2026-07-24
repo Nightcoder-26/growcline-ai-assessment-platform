@@ -7,7 +7,7 @@ from fastapi import APIRouter
 from fastapi.responses import JSONResponse
 
 try:
-    from controllers.aptitude_controller import AptitudeController
+    from app.controllers.aptitude_controller import AptitudeController
     from schemas.request_models import (
         AptitudeQuestionRequest, AptitudeUpdateRequest,
         AptitudeGenerateRequest, AptitudeSubmitRequest

@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
 
 try:
-    from controllers.user_controller import UserController
+    from app.controllers.user_controller import UserController
     from middleware.auth_middleware import get_current_user
     from schemas.request_models import CreateUserRequest, UpdateUserRequest
 except ImportError:

@@ -18,15 +18,17 @@ GET    /api/interviews/user/{user_id}          — List all interviews for a use
 """
 
 import logging
+from datetime import datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import JSONResponse
 
 try:
-    from controllers.interview_controller import InterviewController
-    from middleware.jwt_utils import decode_token
-    from config.database import Database
-    from schemas.interview_schema import (
+    from app.controllers.interview_controller import InterviewController
+    from app.middleware.jwt_utils import decode_token
+    from app.config.database import Database
+    from app.schemas.interview_schema import (
         InterviewCreateRequest,
         QuestionRequest,
         AnswerRequest,

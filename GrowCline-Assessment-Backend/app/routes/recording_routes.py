@@ -13,7 +13,7 @@ from datetime import datetime
 
 try:
     from config.database import Database
-    from controllers.recording_controller import RecordingController
+    from app.controllers.recording_controller import RecordingController
     from middleware.jwt_utils import decode_token
 except ImportError:
     from app.config.database import Database

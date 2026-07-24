@@ -17,7 +17,7 @@ from typing import Optional
 
 try:
     from config.database import Database
-    from controllers.interview_analytics_controller import InterviewAnalyticsController
+    from app.controllers.interview_analytics_controller import InterviewAnalyticsController
     from middleware.jwt_utils import decode_token
     from schemas.interview_analytics_schema import AnalyticsGenerateRequest
 except ImportError:

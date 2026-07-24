@@ -11,7 +11,7 @@ from datetime import datetime
 
 try:
     from config.database import Database
-    from controllers.proctoring_controller import ProctoringController
+    from app.controllers.proctoring_controller import ProctoringController
     from middleware.jwt_utils import decode_token
     from schemas.proctoring_schema import (
         ProctoringEventCreate,
