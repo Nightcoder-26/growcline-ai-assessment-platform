@@ -11,9 +11,9 @@ const jetbrainsMono = JetBrains_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Aperture — AI Interview Studio',
+  title: 'AssessAI — AI-Powered Assessment & Interview Intelligence',
   description:
-    'Record polished video answers to AI-generated interview questions in a calm, focused studio.',
+    'Automate screening with adaptive AI interviews, live proctoring, and deep analytics. Go from applicant to offer in days, not weeks.',
   generator: 'v0.app',
   icons: {
     icon: [
@@ -35,8 +35,9 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'dark',
-  themeColor: '#111318',
+  // colorScheme is intentionally left as light/dark (default) to support both
+  // the landing page (light) and interview studio pages (dark)
+  themeColor: '#4096FF',
 }
 
 export default function RootLayout({
