@@ -7,6 +7,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import Link from "next/link";
 import {
   AreaChart, Area, BarChart, Bar,
   XAxis, YAxis, CartesianGrid, Tooltip,
@@ -124,12 +125,12 @@ function Navbar() {
           ))}
         </nav>
         <div className="hidden md:flex items-center gap-3">
-          <a href="/app" className="text-[13.5px] font-medium text-[#64748B] hover:text-[#1E293B] transition-colors px-2">
+          <Link href="/login" className="text-[13.5px] font-medium text-[#64748B] hover:text-[#1E293B] transition-colors px-2">
             Log in
-          </a>
-          <a href="/app" className="flex items-center gap-1.5 px-4 py-2 text-[13.5px] font-semibold text-white rounded-[10px] bg-[#4096FF] hover:bg-[#3580eb] transition-all shadow-[0_2px_10px_rgba(64,150,255,0.35)] hover:shadow-[0_4px_18px_rgba(64,150,255,0.45)]">
+          </Link>
+          <Link href="/signup" className="flex items-center gap-1.5 px-4 py-2 text-[13.5px] font-semibold text-white rounded-[10px] bg-[#4096FF] hover:bg-[#3580eb] transition-all shadow-[0_2px_10px_rgba(64,150,255,0.35)] hover:shadow-[0_4px_18px_rgba(64,150,255,0.45)]">
             Get Started <ChevronRight size={14} className="-mr-0.5" />
-          </a>
+          </Link>
         </div>
         <button onClick={() => setOpen(!open)} className="md:hidden p-2 text-[#64748B] rounded-lg hover:bg-[#F1F5F9]">
           {open ? <X size={20} /> : <Menu size={20} />}
@@ -141,8 +142,8 @@ function Navbar() {
             <a key={l} href="#" className="block px-4 py-3 text-[14px] font-medium text-[#475569] hover:text-[#1E293B] rounded-xl hover:bg-[#F8FAFC]">{l}</a>
           ))}
           <div className="pt-4 space-y-2 border-t border-[rgba(30,41,59,0.06)] mt-4">
-            <a href="/app" className="block text-center py-3 text-[14px] font-medium text-[#64748B]">Log in</a>
-            <a href="/app" className="block text-center py-3 text-[14px] font-semibold text-white rounded-[10px] bg-[#4096FF]">Get Started</a>
+            <Link href="/login" className="block text-center py-3 text-[14px] font-medium text-[#64748B]">Log in</Link>
+            <Link href="/signup" className="block text-center py-3 text-[14px] font-semibold text-white rounded-[10px] bg-[#4096FF]">Get Started</Link>
           </div>
         </div>
       )}
@@ -339,10 +340,10 @@ function Hero() {
             </p>
 
             <div className="mt-9 flex flex-col sm:flex-row gap-3.5">
-              <a href="/app" className="group inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-[11px] bg-[#4096FF] hover:bg-[#3580eb] text-white text-[14.5px] font-semibold transition-all shadow-[0_4px_18px_rgba(64,150,255,0.42)] hover:shadow-[0_6px_28px_rgba(64,150,255,0.54)] hover:-translate-y-px">
+              <Link href="/signup" className="group inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-[11px] bg-[#4096FF] hover:bg-[#3580eb] text-white text-[14.5px] font-semibold transition-all shadow-[0_4px_18px_rgba(64,150,255,0.42)] hover:shadow-[0_6px_28px_rgba(64,150,255,0.54)] hover:-translate-y-px">
                 Start for free
                 <ArrowRight size={15} className="group-hover:translate-x-0.5 transition-transform" />
-              </a>
+              </Link>
               <a href="#" className="group inline-flex items-center justify-center gap-2.5 px-6 py-3.5 rounded-[11px] bg-white border border-[rgba(30,41,59,0.14)] text-[#1E293B] text-[14.5px] font-semibold hover:border-[#4096FF]/40 hover:bg-white transition-all shadow-sm hover:shadow-md hover:-translate-y-px">
                 <div className="w-[26px] h-[26px] rounded-full bg-[#EFF6FF] flex items-center justify-center shrink-0">
                   <Play size={9} className="text-[#4096FF] fill-[#4096FF] translate-x-[1px]" />
@@ -927,9 +928,9 @@ function CTA() {
             </p>
 
             <div className="flex flex-col sm:flex-row gap-4 justify-center items-center">
-              <a href="/app" className="flex items-center gap-2 px-8 py-4 bg-[#4096FF] hover:bg-[#3580eb] text-white text-[15px] font-bold rounded-[12px] transition-all shadow-[0_4px_22px_rgba(64,150,255,0.55)] hover:shadow-[0_6px_32px_rgba(64,150,255,0.65)] hover:-translate-y-px">
+              <Link href="/signup" className="flex items-center gap-2 px-8 py-4 bg-[#4096FF] hover:bg-[#3580eb] text-white text-[15px] font-bold rounded-[12px] transition-all shadow-[0_4px_22px_rgba(64,150,255,0.55)] hover:shadow-[0_6px_32px_rgba(64,150,255,0.65)] hover:-translate-y-px">
                 Start Free Trial <ArrowRight size={16} />
-              </a>
+              </Link>
               <a href="#" className="flex items-center gap-2 px-8 py-4 border border-white/15 text-white text-[15px] font-semibold rounded-[12px] hover:bg-white/6 hover:border-white/25 transition-all">
                 Talk to Sales <ArrowUpRight size={15} />
               </a>
