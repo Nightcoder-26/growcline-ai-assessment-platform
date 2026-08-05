@@ -91,6 +91,7 @@ async def upload_recording(
 
     Upload a completed recording file (video and/or audio) for an interview.
     Accepts multipart/form-data with fields: interview_id, duration, video_file, audio_file.
+    The actual file is stored in Google Drive; only metadata is saved to MongoDB.
     """
     return await RecordingController.upload_recording(
         interview_id=interview_id,
@@ -115,6 +116,21 @@ async def get_interview_recordings(
     return await RecordingController.get_interview_recordings(interview_id, current_user)
 
 
+@router.get("/{recording_id}/stream")
+async def stream_recording(
+    recording_id: str,
+    current_user: dict = Depends(get_current_user),
+):
+    """
+    GET /api/recordings/{recording_id}/stream
+
+    Proxy-stream the recording video content from Google Drive through
+    the backend. The Google Drive file ID is never exposed to the client.
+    The frontend can embed this URL in a <video> element for authenticated playback.
+    """
+    return await RecordingController.stream_recording(recording_id, current_user)
+
+
 @router.get("/{recording_id}/url")
 async def get_recording_url(
     recording_id: str,
@@ -123,7 +139,9 @@ async def get_recording_url(
     """
     GET /api/recordings/{recording_id}/url
 
-    Generate temporary presigned S3 GET URLs for the recording's media objects.
+    Return backend-proxied stream URLs for the recording's media objects.
+    videoUrl points to the /stream endpoint; the Google Drive file ID is
+    never returned directly.
     """
     return await RecordingController.get_recording_url(recording_id, current_user)
 
@@ -137,7 +155,7 @@ async def get_recording(
     GET /api/recordings/{recording_id}
 
     Retrieve metadata for a single recording.
-    Does not return presigned media URLs — use /url for playback access.
+    Does not return stream URLs — use /url for playback access.
     """
     return await RecordingController.get_recording(recording_id, current_user)
 
@@ -150,7 +168,7 @@ async def delete_recording(
     """
     DELETE /api/recordings/{recording_id}
 
-    Delete a recording's S3 objects and its MongoDB metadata.
+    Delete a recording's Google Drive file(s) and its MongoDB metadata.
     Only the recording owner may perform this operation.
     """
     return await RecordingController.delete_recording(recording_id, current_user)

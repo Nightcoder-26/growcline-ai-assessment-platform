@@ -1,6 +1,10 @@
 """
 Recording Model
 Defines the video_recordings document structure and MongoDB document operations.
+
+Storage provider: Google Drive
+The actual media files live in Google Drive; this model stores metadata only.
+Binary video data is NEVER stored in MongoDB.
 """
 
 from datetime import datetime
@@ -12,7 +16,7 @@ class Recording:
     Represents a video_recordings MongoDB document.
 
     A recording belongs to one interview and one authenticated user.
-    The actual media objects live in AWS S3; this model stores metadata only.
+    The actual media files live in Google Drive; this model stores metadata only.
     """
 
     COLLECTION = "video_recordings"
@@ -21,27 +25,34 @@ class Recording:
     def create_recording(
         interview_id,
         user_id,
-        video_key=None,
-        audio_key=None,
-        video_url=None,
-        audio_url=None,
+        drive_file_id=None,
+        audio_drive_file_id=None,
+        file_name=None,
+        audio_file_name=None,
+        mime_type=None,
+        audio_mime_type=None,
+        file_size=None,
         duration=None,
     ):
         """
         Build a new video_recordings document dict ready for MongoDB insertion.
 
         Args:
-            interview_id: str or ObjectId — the parent interview identifier.
-            user_id: str or ObjectId — the authenticated candidate identifier.
-            video_key: str or None — S3 object key for the video file.
-            audio_key: str or None — S3 object key for the audio file.
-            video_url: str or None — stable S3 URI reference (not a presigned URL).
-            audio_url: str or None — stable S3 URI reference (not a presigned URL).
-            duration: float or None — recording duration in seconds.
+            interview_id:        str or ObjectId — the parent interview identifier.
+            user_id:             str or ObjectId — the authenticated candidate identifier.
+            drive_file_id:       str or None — Google Drive file ID for the video.
+            audio_drive_file_id: str or None — Google Drive file ID for a separate audio track.
+            file_name:           str or None — server-generated video filename (e.g., interview_<id>_<ts>.webm).
+            audio_file_name:     str or None — server-generated audio filename.
+            mime_type:           str or None — validated MIME type of the video (e.g., "video/webm").
+            audio_mime_type:     str or None — validated MIME type of the audio.
+            file_size:           int or None — video file size in bytes.
+            duration:            float or None — recording duration in seconds.
 
         Returns:
             dict ready to pass to collection.insert_one().
         """
+        now = datetime.utcnow()
         return {
             "_id": ObjectId(),
 
@@ -49,17 +60,30 @@ class Recording:
 
             "userId": ObjectId(user_id),
 
-            "videoKey": video_key,
+            # Google Drive storage fields
+            "storageProvider": "google_drive",
 
-            "audioKey": audio_key,
+            "driveFileId": drive_file_id,
 
-            "videoUrl": video_url,
+            "audioDriveFileId": audio_drive_file_id,
 
-            "audioUrl": audio_url,
+            "fileName": file_name,
+
+            "audioFileName": audio_file_name,
+
+            "mimeType": mime_type,
+
+            "audioMimeType": audio_mime_type,
+
+            "fileSize": file_size,
 
             "duration": duration,
 
-            "createdAt": datetime.utcnow(),
+            "status": "UPLOADED",
+
+            "createdAt": now,
+
+            "updatedAt": now,
         }
 
     @staticmethod
@@ -68,7 +92,8 @@ class Recording:
         Serialize a video_recordings MongoDB document for an API response.
 
         Converts ObjectId values to strings and exposes only safe metadata fields.
-        Does NOT include S3 keys or presigned URLs — use the /url endpoint for access.
+        Does NOT include Google Drive file IDs or any internal storage keys —
+        use the /url endpoint for playback access.
 
         Args:
             recording: dict — a raw MongoDB document from the video_recordings collection.
@@ -76,6 +101,10 @@ class Recording:
         Returns:
             dict safe for JSON serialisation.
         """
+        # Safely convert datetime to ISO string if present
+        created_at = recording.get("createdAt")
+        updated_at = recording.get("updatedAt")
+
         return {
             "id": str(recording["_id"]),
 
@@ -83,11 +112,23 @@ class Recording:
 
             "userId": str(recording["userId"]),
 
-            "hasVideo": recording.get("videoKey") is not None,
+            "storageProvider": recording.get("storageProvider", "google_drive"),
 
-            "hasAudio": recording.get("audioKey") is not None,
+            "fileName": recording.get("fileName"),
+
+            "mimeType": recording.get("mimeType"),
+
+            "fileSize": recording.get("fileSize"),
+
+            "hasVideo": recording.get("driveFileId") is not None,
+
+            "hasAudio": recording.get("audioDriveFileId") is not None,
 
             "duration": recording.get("duration"),
 
-            "createdAt": recording.get("createdAt"),
+            "status": recording.get("status", "UPLOADED"),
+
+            "createdAt": created_at.isoformat() if hasattr(created_at, "isoformat") else created_at,
+
+            "updatedAt": updated_at.isoformat() if hasattr(updated_at, "isoformat") else updated_at,
         }

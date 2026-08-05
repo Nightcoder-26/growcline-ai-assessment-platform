@@ -2,7 +2,7 @@
 Tests for the Video Recording Module.
 
 Uses pytest with unittest.mock to isolate:
-    - AWS S3 (boto3) — never touches a real bucket
+    - Google Drive API (GoogleDriveService) — never touches a real Drive
     - MongoDB (via Database.get_db patch) — never touches a real database
 
 All test media files are small in-memory objects.
@@ -15,7 +15,6 @@ from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 import pytest
-from botocore.exceptions import ClientError
 
 # ── make the app importable from the tests directory ────────────────────────
 import sys
@@ -23,10 +22,8 @@ import os
 
 # Set dummy environment variables for tests before any config module imports
 os.environ["JWT_SECRET"] = "test-secret"
-os.environ["AWS_ACCESS_KEY_ID"] = "mock-key"
-os.environ["AWS_SECRET_ACCESS_KEY"] = "mock-secret"
-os.environ["AWS_REGION"] = "us-east-1"
-os.environ["AWS_S3_BUCKET"] = "mock-bucket"
+os.environ["GOOGLE_DRIVE_CREDENTIALS_FILE"] = ""   # no real file needed for tests
+os.environ["GOOGLE_DRIVE_FOLDER_ID"] = "test-folder-id"
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -36,6 +33,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 # ---------------------------------------------------------------------------
 
 from fastapi.testclient import TestClient
+
 
 def _make_app():
     """
@@ -106,6 +104,7 @@ def auth_headers():
 FAKE_USER_ID = "aaaaaaaaaaaaaaaaaaaaaaaa"
 FAKE_INTERVIEW_ID = "bbbbbbbbbbbbbbbbbbbbbbbb"
 FAKE_RECORDING_ID = "cccccccccccccccccccccccc"
+FAKE_DRIVE_FILE_ID = "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs"
 
 
 def _fake_interview(user_id=FAKE_USER_ID):
@@ -119,75 +118,56 @@ def _fake_interview(user_id=FAKE_USER_ID):
     }
 
 
-def _fake_recording(user_id=FAKE_USER_ID, video_key="recordings/a/b/video/x.webm",
-                    audio_key=None):
-    """Return a minimal video_recordings document."""
+def _fake_recording(user_id=FAKE_USER_ID, drive_file_id=FAKE_DRIVE_FILE_ID,
+                    audio_drive_file_id=None):
+    """Return a minimal video_recordings document using Google Drive fields."""
     from bson import ObjectId
-    # user_id must be a 24-char hex string for ObjectId() to accept it.
-    # Callers must pass valid hex strings.
+    now = datetime.utcnow()
     return {
         "_id": ObjectId(FAKE_RECORDING_ID),
         "interviewId": ObjectId(FAKE_INTERVIEW_ID),
         "userId": ObjectId(user_id),
-        "videoKey": video_key,
-        "audioKey": audio_key,
-        "videoUrl": None,
-        "audioUrl": None,
+        "storageProvider": "google_drive",
+        "driveFileId": drive_file_id,
+        "audioDriveFileId": audio_drive_file_id,
+        "fileName": f"interview_{FAKE_INTERVIEW_ID}_20260806T143000.webm",
+        "audioFileName": None,
+        "mimeType": "video/webm",
+        "audioMimeType": None,
+        "fileSize": 1024 * 1024,
         "duration": 120.0,
-        "createdAt": datetime.utcnow(),
+        "status": "UPLOADED",
+        "createdAt": now,
+        "updatedAt": now,
     }
 
 
 # ---------------------------------------------------------------------------
-# Helper: patch context for upload tests
+# Helper: mock GoogleDriveService
 # ---------------------------------------------------------------------------
 
-def _upload_patches(interview_doc=None, insert_ok=True, s3_fail_on=None):
+def _mock_drive(upload_id=FAKE_DRIVE_FILE_ID, upload_fail=False,
+                delete_ok=True, file_exists=True):
     """
-    Return a context manager that patches Database, boto3, and Config
-    for upload service tests.
+    Return a MagicMock that replaces GoogleDriveService for a test.
 
     Args:
-        interview_doc: the fake interview returned by find_one (default: valid)
-        insert_ok: if False, simulate MongoDB insert failure
-        s3_fail_on: "video" or "audio" to simulate S3 upload failure on that media
+        upload_id:   str — drive file ID returned on successful upload.
+        upload_fail: bool — if True, upload_file raises RuntimeError.
+        delete_ok:   bool — if False, delete_file returns False.
+        file_exists: bool — file_exists() return value.
     """
-    from unittest.mock import patch, MagicMock
-    from botocore.exceptions import ClientError
+    mock_drive = MagicMock()
 
-    if interview_doc is None:
-        interview_doc = _fake_interview()
+    if upload_fail:
+        mock_drive.upload_file.side_effect = RuntimeError("Drive upload failed")
+    else:
+        mock_drive.upload_file.return_value = upload_id
 
-    mock_db = MagicMock()
-    mock_db.__getitem__.side_effect = lambda name: {
-        "interviews": MagicMock(
-            find_one=MagicMock(return_value=interview_doc)
-        ),
-        "video_recordings": MagicMock(
-            insert_one=MagicMock(
-                side_effect=Exception("DB error") if not insert_ok else MagicMock()
-            )
-        ),
-    }[name]
-
-    mock_s3 = MagicMock()
-
-    if s3_fail_on == "video":
-        def _raise_on_video(stream, bucket, key, ExtraArgs=None):
-            raise ClientError({"Error": {"Code": "500", "Message": "S3 error"}}, "upload_fileobj")
-        mock_s3.upload_fileobj.side_effect = _raise_on_video
-    elif s3_fail_on == "audio":
-        call_count = {"n": 0}
-
-        def _fail_second_call(stream, bucket, key, ExtraArgs=None):
-            call_count["n"] += 1
-            if call_count["n"] > 1:
-                raise ClientError(
-                    {"Error": {"Code": "500", "Message": "S3 error"}}, "upload_fileobj"
-                )
-        mock_s3.upload_fileobj.side_effect = _fail_second_call
-
-    return mock_db, mock_s3
+    mock_drive.delete_file.return_value = delete_ok
+    mock_drive.file_exists.return_value = file_exists
+    mock_drive.download_file.return_value = io.BytesIO(b"fake-video-bytes")
+    return mock_drive
 
 
 # ===========================================================================
@@ -206,11 +186,10 @@ class TestUploadRecording:
             "video_recordings": MagicMock(insert_one=MagicMock()),
         }[name]
 
-        mock_s3 = MagicMock()
+        mock_drive = _mock_drive()
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -231,21 +210,7 @@ class TestUploadRecording:
         """Test 2: MP4 video MIME type is accepted."""
         from app.services import recording_service
 
-        mock_db = MagicMock()
-        mock_db.__getitem__.side_effect = lambda name: {
-            "interviews": MagicMock(find_one=MagicMock(return_value=_fake_interview())),
-            "video_recordings": MagicMock(insert_one=MagicMock()),
-        }[name]
-
-        mock_s3 = MagicMock()
-
-        with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
-
-            mock_database.get_db.return_value = mock_db
-
-            assert "video/mp4" in recording_service.ALLOWED_VIDEO_MIME_TYPES
+        assert "video/mp4" in recording_service.ALLOWED_VIDEO_MIME_TYPES
 
     def test_allowed_audio_mime_types(self):
         """Test 3: Audio MIME types include common browser formats."""
@@ -276,9 +241,10 @@ class TestUploadRecording:
             "video_recordings": MagicMock(),
         }[name]
 
+        mock_drive = _mock_drive()
+
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=MagicMock()), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -394,9 +360,10 @@ class TestUploadRecording:
             "video_recordings": MagicMock(),
         }[name]
 
+        mock_drive = _mock_drive()
+
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=MagicMock()), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -426,9 +393,10 @@ class TestUploadRecording:
             "video_recordings": MagicMock(),
         }[name]
 
+        mock_drive = _mock_drive()
+
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=MagicMock()), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -446,8 +414,8 @@ class TestUploadRecording:
                     duration=None,
                 )
 
-    def test_s3_video_upload_called(self):
-        """Test 16: S3 upload_fileobj is called for a valid video file."""
+    def test_drive_upload_called_for_video(self):
+        """Test 16: GoogleDriveService.upload_file is called for a valid video file."""
         from app.services import recording_service
 
         mock_db = MagicMock()
@@ -456,16 +424,16 @@ class TestUploadRecording:
             "video_recordings": MagicMock(insert_one=MagicMock()),
         }[name]
 
-        mock_s3 = MagicMock()
+        mock_drive = _mock_drive()
 
         fake_video = MagicMock()
         fake_video.filename = "x.webm"
         fake_video.content_type = "video/webm"
-        fake_video.stream = io.BytesIO(b"fake-video-bytes")
+        fake_video.file = io.BytesIO(b"fake-video-bytes")
+        fake_video.stream = fake_video.file
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -477,10 +445,10 @@ class TestUploadRecording:
                 duration=120.0,
             )
 
-        mock_s3.upload_fileobj.assert_called_once()
+        mock_drive.upload_file.assert_called_once()
 
-    def test_s3_upload_receives_correct_content_type(self):
-        """Test 17: S3 upload uses the validated MIME type as ContentType."""
+    def test_drive_upload_receives_correct_mime_type(self):
+        """Test 17: GoogleDriveService.upload_file is called with the validated MIME type."""
         from app.services import recording_service
 
         mock_db = MagicMock()
@@ -489,16 +457,16 @@ class TestUploadRecording:
             "video_recordings": MagicMock(insert_one=MagicMock()),
         }[name]
 
-        mock_s3 = MagicMock()
+        mock_drive = _mock_drive()
 
         fake_video = MagicMock()
         fake_video.filename = "x.mp4"
         fake_video.content_type = "video/mp4"
-        fake_video.stream = io.BytesIO(b"fake-video-bytes")
+        fake_video.file = io.BytesIO(b"fake-video-bytes")
+        fake_video.stream = fake_video.file
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -510,29 +478,32 @@ class TestUploadRecording:
                 duration=None,
             )
 
-        _, kwargs = mock_s3.upload_fileobj.call_args
-        assert kwargs.get("ExtraArgs", {}).get("ContentType") == "video/mp4"
+        call_kwargs = mock_drive.upload_file.call_args.kwargs
+        assert call_kwargs.get("mime_type") == "video/mp4"
 
-    def test_s3_key_does_not_trust_original_filename(self):
-        """Test 18: _build_s3_key ignores the original filename entirely."""
-        from app.services.recording_service import _build_s3_key
+    def test_drive_filename_does_not_trust_original_filename(self):
+        """Test 18: _build_drive_filename generates a server-side safe filename."""
+        from app.services.recording_service import _build_drive_filename
 
-        key = _build_s3_key(FAKE_USER_ID, FAKE_INTERVIEW_ID, "video", "webm")
-        assert "interview.webm" not in key
-        assert "../../" not in key
-        assert ".webm" in key
+        ts = datetime(2026, 8, 6, 14, 35, 22)
+        name = _build_drive_filename(FAKE_INTERVIEW_ID, ts, "webm")
+        # Must contain the interview ID and timestamp, not user-supplied names
+        assert FAKE_INTERVIEW_ID in name
+        assert "20260806T143522" in name
+        assert name.endswith(".webm")
+        assert "../../" not in name
 
-    def test_s3_key_includes_user_and_interview(self):
-        """Test 19: S3 object key contains user_id and interview_id namespaces."""
-        from app.services.recording_service import _build_s3_key
+    def test_drive_filename_includes_interview_id_and_timestamp(self):
+        """Test 19: Generated filename contains interview_id and timestamp segments."""
+        from app.services.recording_service import _build_drive_filename
 
-        key = _build_s3_key(FAKE_USER_ID, FAKE_INTERVIEW_ID, "video", "webm")
-        assert FAKE_USER_ID in key
-        assert FAKE_INTERVIEW_ID in key
-        assert key.startswith("recordings/")
+        ts = datetime(2026, 8, 6, 14, 35, 22)
+        name = _build_drive_filename(FAKE_INTERVIEW_ID, ts, "webm")
+        assert name.startswith("interview_")
+        assert FAKE_INTERVIEW_ID in name
 
-    def test_mongodb_insert_called_after_s3_upload(self):
-        """Test 20: MongoDB insert_one is called after successful S3 upload."""
+    def test_mongodb_insert_called_after_drive_upload(self):
+        """Test 20: MongoDB insert_one is called after successful Drive upload."""
         from app.services import recording_service
 
         mock_insert = MagicMock()
@@ -542,16 +513,16 @@ class TestUploadRecording:
             "video_recordings": MagicMock(insert_one=mock_insert),
         }[name]
 
-        mock_s3 = MagicMock()
+        mock_drive = _mock_drive()
 
         fake_video = MagicMock()
         fake_video.filename = "x.webm"
         fake_video.content_type = "video/webm"
-        fake_video.stream = io.BytesIO(b"fake")
+        fake_video.file = io.BytesIO(b"fake")
+        fake_video.stream = fake_video.file
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -565,8 +536,8 @@ class TestUploadRecording:
 
         mock_insert.assert_called_once()
 
-    def test_mongodb_not_inserted_when_s3_fails(self):
-        """Test 21: MongoDB insert is NOT called when S3 video upload fails."""
+    def test_mongodb_not_inserted_when_drive_upload_fails(self):
+        """Test 21: MongoDB insert is NOT called when Drive video upload fails."""
         from app.services import recording_service
 
         mock_insert = MagicMock()
@@ -576,23 +547,21 @@ class TestUploadRecording:
             "video_recordings": MagicMock(insert_one=mock_insert),
         }[name]
 
-        mock_s3 = MagicMock()
-        mock_s3.upload_fileobj.side_effect = ClientError(
-            {"Error": {"Code": "500", "Message": "S3 error"}}, "upload_fileobj"
-        )
+        # Drive upload will raise RuntimeError
+        mock_drive = _mock_drive(upload_fail=True)
 
         fake_video = MagicMock()
         fake_video.filename = "x.webm"
         fake_video.content_type = "video/webm"
-        fake_video.stream = io.BytesIO(b"fake")
+        fake_video.file = io.BytesIO(b"fake")
+        fake_video.stream = fake_video.file
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
-            with pytest.raises(RuntimeError, match="Video upload to storage failed"):
+            with pytest.raises(RuntimeError):
                 recording_service.upload_recording(
                     interview_id=FAKE_INTERVIEW_ID,
                     user_id=FAKE_USER_ID,
@@ -603,18 +572,17 @@ class TestUploadRecording:
 
         mock_insert.assert_not_called()
 
-    def test_video_s3_deleted_when_audio_upload_fails(self):
-        """Test 22: Video S3 object is deleted when subsequent audio upload fails."""
+    def test_video_drive_file_deleted_when_audio_upload_fails(self):
+        """Test 22: Video Drive file is deleted when subsequent audio upload fails."""
         from app.services import recording_service
 
         call_count = {"n": 0}
 
-        def fail_on_second(*args, **kwargs):
+        def fail_on_second(**kwargs):
             call_count["n"] += 1
             if call_count["n"] > 1:
-                raise ClientError(
-                    {"Error": {"Code": "500", "Message": "S3 error"}}, "upload_fileobj"
-                )
+                raise RuntimeError("Audio Drive upload failed")
+            return FAKE_DRIVE_FILE_ID
 
         mock_db = MagicMock()
         mock_db.__getitem__.side_effect = lambda name: {
@@ -622,26 +590,27 @@ class TestUploadRecording:
             "video_recordings": MagicMock(insert_one=MagicMock()),
         }[name]
 
-        mock_s3 = MagicMock()
-        mock_s3.upload_fileobj.side_effect = fail_on_second
+        mock_drive = _mock_drive()
+        mock_drive.upload_file.side_effect = fail_on_second
 
         fake_video = MagicMock()
         fake_video.filename = "x.webm"
         fake_video.content_type = "video/webm"
-        fake_video.stream = io.BytesIO(b"fake")
+        fake_video.file = io.BytesIO(b"fake")
+        fake_video.stream = fake_video.file
 
         fake_audio = MagicMock()
         fake_audio.filename = "a.webm"
         fake_audio.content_type = "audio/webm"
-        fake_audio.stream = io.BytesIO(b"fake-audio")
+        fake_audio.file = io.BytesIO(b"fake-audio")
+        fake_audio.stream = fake_audio.file
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
-            with pytest.raises(RuntimeError, match="Audio upload to storage failed"):
+            with pytest.raises(RuntimeError, match="Audio upload to Google Drive failed"):
                 recording_service.upload_recording(
                     interview_id=FAKE_INTERVIEW_ID,
                     user_id=FAKE_USER_ID,
@@ -650,11 +619,11 @@ class TestUploadRecording:
                     duration=None,
                 )
 
-        # delete_object should have been called to clean up the video
-        mock_s3.delete_object.assert_called_once()
+        # delete_file should have been called to clean up the video
+        mock_drive.delete_file.assert_called_once_with(FAKE_DRIVE_FILE_ID)
 
-    def test_s3_cleanup_when_mongodb_insert_fails(self):
-        """Test 23: S3 objects are deleted when MongoDB insert raises an exception."""
+    def test_drive_cleanup_when_mongodb_insert_fails(self):
+        """Test 23: Drive files are deleted when MongoDB insert raises an exception."""
         from app.services import recording_service
 
         mock_db = MagicMock()
@@ -663,16 +632,16 @@ class TestUploadRecording:
             "video_recordings": MagicMock(insert_one=MagicMock(side_effect=Exception("DB down"))),
         }[name]
 
-        mock_s3 = MagicMock()
+        mock_drive = _mock_drive()
 
         fake_video = MagicMock()
         fake_video.filename = "x.webm"
         fake_video.content_type = "video/webm"
-        fake_video.stream = io.BytesIO(b"fake")
+        fake_video.file = io.BytesIO(b"fake")
+        fake_video.stream = fake_video.file
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -685,7 +654,8 @@ class TestUploadRecording:
                     duration=None,
                 )
 
-        mock_s3.delete_object.assert_called_once()
+        # delete_file should have been called to clean up the orphaned Drive file
+        mock_drive.delete_file.assert_called_once_with(FAKE_DRIVE_FILE_ID)
 
 
 # ===========================================================================
@@ -697,7 +667,6 @@ class TestGetRecording:
     def test_get_recording_metadata(self):
         """Test 24: get_recording returns serialised metadata for the owner."""
         from app.services import recording_service
-        from bson import ObjectId
 
         recording_doc = _fake_recording()
 
@@ -770,7 +739,6 @@ class TestListInterviewRecordings:
     def test_list_recordings_for_owned_interview(self):
         """Test 28: get_recordings_for_interview returns recordings for owner."""
         from app.services import recording_service
-        from bson import ObjectId
 
         recording_doc = _fake_recording()
 
@@ -822,28 +790,26 @@ class TestListInterviewRecordings:
 
 
 # ===========================================================================
-# Presigned URL tests
+# Recording access URL tests (now returns backend stream URL)
 # ===========================================================================
 
-class TestPresignedUrls:
+class TestRecordingAccessUrls:
 
-    def test_generate_video_presigned_url(self):
-        """Test 30: get_recording_access_urls returns a video URL when videoKey is present."""
+    def test_returns_video_stream_url_when_drive_file_exists(self):
+        """Test 30: get_recording_access_urls returns a /stream videoUrl when Drive file exists."""
         from app.services import recording_service
 
-        recording_doc = _fake_recording(video_key="recordings/a/b/video/x.webm")
+        recording_doc = _fake_recording(drive_file_id=FAKE_DRIVE_FILE_ID)
 
         mock_db = MagicMock()
         mock_db.__getitem__.side_effect = lambda name: {
             "video_recordings": MagicMock(find_one=MagicMock(return_value=recording_doc)),
         }[name]
 
-        mock_s3 = MagicMock()
-        mock_s3.generate_presigned_url.return_value = "https://s3.example.com/presigned-url"
+        mock_drive = _mock_drive(file_exists=True)
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -852,54 +818,24 @@ class TestPresignedUrls:
             )
 
         assert result["videoUrl"] is not None
-        assert "https" in result["videoUrl"]
+        assert "/stream" in result["videoUrl"]
+        assert FAKE_RECORDING_ID in result["videoUrl"]
 
-    def test_generate_audio_presigned_url(self):
-        """Test 31: get_recording_access_urls returns an audio URL when audioKey is present."""
+    def test_returns_null_audio_url_when_no_audio_drive_file(self):
+        """Test 31: audioUrl is null when no audioDriveFileId stored."""
         from app.services import recording_service
 
-        recording_doc = _fake_recording(
-            video_key="recordings/a/b/video/x.webm",
-            audio_key="recordings/a/b/audio/y.webm",
-        )
+        recording_doc = _fake_recording(audio_drive_file_id=None)
 
         mock_db = MagicMock()
         mock_db.__getitem__.side_effect = lambda name: {
             "video_recordings": MagicMock(find_one=MagicMock(return_value=recording_doc)),
         }[name]
 
-        mock_s3 = MagicMock()
-        mock_s3.generate_presigned_url.return_value = "https://s3.example.com/presigned"
+        mock_drive = _mock_drive(file_exists=True)
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
-
-            mock_database.get_db.return_value = mock_db
-
-            result = recording_service.get_recording_access_urls(
-                FAKE_RECORDING_ID, FAKE_USER_ID
-            )
-
-        assert result["audioUrl"] is not None
-
-    def test_null_audio_url_when_audio_key_absent(self):
-        """Test 32: audioUrl is null when no audioKey stored for the recording."""
-        from app.services import recording_service
-
-        recording_doc = _fake_recording(video_key="k", audio_key=None)
-
-        mock_db = MagicMock()
-        mock_db.__getitem__.side_effect = lambda name: {
-            "video_recordings": MagicMock(find_one=MagicMock(return_value=recording_doc)),
-        }[name]
-
-        mock_s3 = MagicMock()
-        mock_s3.generate_presigned_url.return_value = "https://s3.example.com/video"
-
-        with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -909,24 +845,21 @@ class TestPresignedUrls:
 
         assert result["audioUrl"] is None
 
-    def test_presigned_url_expiry_uses_config_value(self):
-        """Test 33: expiresIn in the response matches RECORDING_URL_EXPIRY_SECONDS."""
+    def test_returns_audio_stream_url_when_audio_drive_file_exists(self):
+        """Test 32: audioUrl points to /stream/audio when audioDriveFileId is present."""
         from app.services import recording_service
-        from app.config.settings import Config
 
-        recording_doc = _fake_recording(video_key="k")
+        recording_doc = _fake_recording(audio_drive_file_id="audio-drive-id-xxx")
 
         mock_db = MagicMock()
         mock_db.__getitem__.side_effect = lambda name: {
             "video_recordings": MagicMock(find_one=MagicMock(return_value=recording_doc)),
         }[name]
 
-        mock_s3 = MagicMock()
-        mock_s3.generate_presigned_url.return_value = "https://presigned"
+        mock_drive = _mock_drive(file_exists=True)
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -934,35 +867,56 @@ class TestPresignedUrls:
                 FAKE_RECORDING_ID, FAKE_USER_ID
             )
 
-        expected_expiry = int(getattr(Config, "RECORDING_URL_EXPIRY_SECONDS", 900))
-        assert result["expiresIn"] == expected_expiry
+        assert result["audioUrl"] is not None
 
-    def test_presigning_failure_raises_runtime_error(self):
-        """Test 34: RuntimeError is raised when S3 presigning fails."""
+    def test_raises_runtime_error_when_drive_file_missing(self):
+        """Test 33: RuntimeError is raised when the Drive file no longer exists."""
         from app.services import recording_service
 
-        recording_doc = _fake_recording(video_key="k")
+        recording_doc = _fake_recording(drive_file_id=FAKE_DRIVE_FILE_ID)
 
         mock_db = MagicMock()
         mock_db.__getitem__.side_effect = lambda name: {
             "video_recordings": MagicMock(find_one=MagicMock(return_value=recording_doc)),
         }[name]
 
-        mock_s3 = MagicMock()
-        mock_s3.generate_presigned_url.side_effect = ClientError(
-            {"Error": {"Code": "403", "Message": "Forbidden"}}, "generate_presigned_url"
-        )
+        # file_exists returns False → Drive file is gone
+        mock_drive = _mock_drive(file_exists=False)
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
-            with pytest.raises(RuntimeError, match="video access URL"):
+            with pytest.raises(RuntimeError, match="could not be found"):
                 recording_service.get_recording_access_urls(
                     FAKE_RECORDING_ID, FAKE_USER_ID
                 )
+
+    def test_drive_file_id_not_exposed_in_url_response(self):
+        """Test 34: The Drive file ID must never appear in the URL response."""
+        from app.services import recording_service
+
+        recording_doc = _fake_recording(drive_file_id=FAKE_DRIVE_FILE_ID)
+
+        mock_db = MagicMock()
+        mock_db.__getitem__.side_effect = lambda name: {
+            "video_recordings": MagicMock(find_one=MagicMock(return_value=recording_doc)),
+        }[name]
+
+        mock_drive = _mock_drive(file_exists=True)
+
+        with patch.object(recording_service, "Database") as mock_database, \
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
+
+            mock_database.get_db.return_value = mock_db
+
+            result = recording_service.get_recording_access_urls(
+                FAKE_RECORDING_ID, FAKE_USER_ID
+            )
+
+        video_url = result.get("videoUrl", "")
+        assert FAKE_DRIVE_FILE_ID not in (video_url or "")
 
 
 # ===========================================================================
@@ -972,7 +926,7 @@ class TestPresignedUrls:
 class TestDeleteRecording:
 
     def test_delete_owned_recording(self):
-        """Test 35: delete_recording removes S3 objects and MongoDB document."""
+        """Test 35: delete_recording removes Drive file and MongoDB document."""
         from app.services import recording_service
 
         recording_doc = _fake_recording()
@@ -986,18 +940,17 @@ class TestDeleteRecording:
             ),
         }[name]
 
-        mock_s3 = MagicMock()
+        mock_drive = _mock_drive(delete_ok=True)
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
             result = recording_service.delete_recording(FAKE_RECORDING_ID, FAKE_USER_ID)
 
         assert "deleted" in result["message"].lower()
-        mock_s3.delete_object.assert_called_once()
+        mock_drive.delete_file.assert_called_once_with(FAKE_DRIVE_FILE_ID)
         mock_delete_one.assert_called_once()
 
     def test_reject_deleting_other_users_recording(self):
@@ -1017,8 +970,8 @@ class TestDeleteRecording:
             with pytest.raises(ValueError, match="permission"):
                 recording_service.delete_recording(FAKE_RECORDING_ID, FAKE_USER_ID)
 
-    def test_s3_failure_preserves_mongodb_metadata(self):
-        """Test 37: MongoDB document is NOT deleted when S3 deletion fails."""
+    def test_drive_failure_preserves_mongodb_metadata(self):
+        """Test 37: MongoDB document is NOT deleted when Drive deletion fails."""
         from app.services import recording_service
 
         recording_doc = _fake_recording()
@@ -1032,14 +985,11 @@ class TestDeleteRecording:
             ),
         }[name]
 
-        mock_s3 = MagicMock()
-        mock_s3.delete_object.side_effect = ClientError(
-            {"Error": {"Code": "500", "Message": "S3 error"}}, "delete_object"
-        )
+        # delete_file returns False → simulates Drive deletion failure
+        mock_drive = _mock_drive(delete_ok=False)
 
         with patch.object(recording_service, "Database") as mock_database, \
-             patch.object(recording_service, "_get_s3_client", return_value=mock_s3), \
-             patch.object(recording_service, "_get_s3_bucket", return_value="test-bucket"):
+             patch.object(recording_service, "GoogleDriveService", mock_drive):
 
             mock_database.get_db.return_value = mock_db
 
@@ -1060,14 +1010,23 @@ class TestSerialisationAndRouting:
         from app.models.recording_model import Recording
         from bson import ObjectId
 
+        now = datetime.utcnow()
         doc = {
             "_id": ObjectId(FAKE_RECORDING_ID),
             "interviewId": ObjectId(FAKE_INTERVIEW_ID),
             "userId": ObjectId(FAKE_USER_ID),
-            "videoKey": "key",
-            "audioKey": None,
+            "storageProvider": "google_drive",
+            "driveFileId": FAKE_DRIVE_FILE_ID,
+            "audioDriveFileId": None,
+            "fileName": "interview_bb_20260806T143000.webm",
+            "audioFileName": None,
+            "mimeType": "video/webm",
+            "audioMimeType": None,
+            "fileSize": 1024,
             "duration": 60.0,
-            "createdAt": datetime.utcnow(),
+            "status": "UPLOADED",
+            "createdAt": now,
+            "updatedAt": now,
         }
 
         result = Recording.response(doc)
@@ -1075,9 +1034,43 @@ class TestSerialisationAndRouting:
         assert isinstance(result["id"], str)
         assert isinstance(result["interviewId"], str)
         assert isinstance(result["userId"], str)
+        # driveFileId must NOT appear in response
+        assert "driveFileId" not in result
+
+    def test_response_contains_new_drive_fields(self):
+        """Test 39: Recording.response() includes storageProvider, fileName, mimeType, status."""
+        from app.models.recording_model import Recording
+        from bson import ObjectId
+
+        now = datetime.utcnow()
+        doc = {
+            "_id": ObjectId(FAKE_RECORDING_ID),
+            "interviewId": ObjectId(FAKE_INTERVIEW_ID),
+            "userId": ObjectId(FAKE_USER_ID),
+            "storageProvider": "google_drive",
+            "driveFileId": FAKE_DRIVE_FILE_ID,
+            "audioDriveFileId": None,
+            "fileName": "interview_bb_20260806T143000.webm",
+            "audioFileName": None,
+            "mimeType": "video/webm",
+            "audioMimeType": None,
+            "fileSize": 48392013,
+            "duration": 1800.0,
+            "status": "UPLOADED",
+            "createdAt": now,
+            "updatedAt": now,
+        }
+
+        result = Recording.response(doc)
+
+        assert result["storageProvider"] == "google_drive"
+        assert result["fileName"] == "interview_bb_20260806T143000.webm"
+        assert result["mimeType"] == "video/webm"
+        assert result["fileSize"] == 48392013
+        assert result["status"] == "UPLOADED"
 
     def test_route_ordering_interview_path(self, client, auth_headers):
-        """Test 39: /interview/<id> route is matched before /<recording_id>."""
+        """Test 40: /interview/<id> route is matched before /<recording_id>."""
         from app.services import recording_service
 
         mock_db = MagicMock()
@@ -1098,7 +1091,7 @@ class TestSerialisationAndRouting:
         assert response.status_code != 405
 
     def test_existing_team_a_home_route_intact(self, client):
-        """Test 40: Team A's home route (/) is still registered and returns success."""
+        """Test 41: Team A's home route (/) is still registered and returns success."""
         with patch("app.config.database.Database.connect"):
             response = client.get("/")
 

@@ -72,3 +72,11 @@ desktop.ini
 # Jupyter Notebook
 # ===========================
 .ipynb_checkpoints/
+
+# ===========================
+# Google Drive Service Account Credentials
+# NEVER commit these files to Git.
+# ===========================
+credentials/
+*_credentials.json
+*service_account*.json
