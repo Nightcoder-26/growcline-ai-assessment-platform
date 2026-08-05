@@ -3,6 +3,8 @@ Main FastAPI Application Entrypoint for GrowCline Assessment & Interview Intelli
 """
 
 import os
+import logging
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException
@@ -11,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config.database import Database
 from app.config.settings import Config
+from app.services.google_drive_service import GoogleDriveService
 from app.routes import (
     auth_router,
     technical_router,
@@ -32,7 +35,26 @@ from app.routes.interview_session_routes import (
     analytics_router as interview_session_analytics_router,
 )
 
-app = FastAPI(title="GrowCline AI Assessment & Interview Intelligence Platform")
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifespan context manager for application startup and shutdown tasks."""
+    # Startup
+    try:
+        Config.validate_google_drive_config()
+        GoogleDriveService.verify_connection()
+    except Exception as error:
+        logger.warning(f"Google Drive initialization notice: {error}")
+    yield
+    # Shutdown
+
+
+app = FastAPI(
+    title="GrowCline AI Assessment & Interview Intelligence Platform",
+    lifespan=lifespan,
+)
 
 # CORS Configuration
 app.add_middleware(

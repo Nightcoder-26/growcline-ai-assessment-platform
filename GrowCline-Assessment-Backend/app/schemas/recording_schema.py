@@ -18,16 +18,23 @@ class RecordingResponse(BaseModel):
     Serialised representation of a single video_recordings document.
 
     Returned by upload, get-by-id, and list-by-interview endpoints.
-    Media access URLs are intentionally excluded; use the /url endpoint.
+    Google Drive file IDs are intentionally excluded from responses;
+    use the /url endpoint for playback access URLs.
     """
 
     id: str
     interviewId: str
     userId: str
+    storageProvider: str
+    fileName: Optional[str]
+    mimeType: Optional[str]
+    fileSize: Optional[int]
     hasVideo: bool
     hasAudio: bool
     duration: Optional[float]
-    createdAt: Optional[datetime]
+    status: str
+    createdAt: Optional[str]
+    updatedAt: Optional[str]
 
 
 class RecordingListResponse(BaseModel):
@@ -40,16 +47,23 @@ class RecordingListResponse(BaseModel):
     count: int
 
 
-class RecordingAccessUrlResponse(BaseModel):
+class RecordingStreamUrlResponse(BaseModel):
     """
-    Temporary presigned S3 access URLs for a recording.
+    Backend-proxied stream/download URLs for a recording.
 
-    Both video_url and audio_url may be null when the corresponding
-    media object was not uploaded for that recording document.
-    URLs expire after expires_in seconds; do not cache them permanently.
+    videoUrl points to GET /api/recordings/{id}/stream — the backend
+    proxies the Google Drive content through JWT-authenticated endpoints.
+    The Google Drive file ID is never exposed to the frontend.
+
+    Both videoUrl and audioUrl may be null when the corresponding
+    media track was not uploaded for that recording document.
     """
 
     recordingId: str
     videoUrl: Optional[str]
     audioUrl: Optional[str]
-    expiresIn: int
+
+
+# Keep backward-compatible alias so any existing imports of
+# RecordingAccessUrlResponse continue to resolve without errors.
+RecordingAccessUrlResponse = RecordingStreamUrlResponse

@@ -6,7 +6,7 @@ for all Video Recording endpoints using FastAPI JSONResponse.
 
 import logging
 
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 try:
     from services import recording_service
@@ -57,11 +57,13 @@ class RecordingController:
             )
 
         except ValueError as error:
+            err_msg = str(error)
+            status_code = 413 if "exceeds the maximum" in err_msg.lower() else 400
             return JSONResponse(
-                status_code=400,
+                status_code=status_code,
                 content={
                     "success": False,
-                    "message": str(error),
+                    "message": err_msg,
                 }
             )
 
@@ -177,7 +179,8 @@ class RecordingController:
         """
         GET /api/recordings/<recording_id>/url
 
-        Generates and returns temporary presigned S3 GET URLs.
+        Returns backend-proxied stream URLs for the recording's media objects.
+        The Google Drive file ID is never exposed to the frontend.
         """
         try:
             user_id = str(current_user["id"])
@@ -205,7 +208,7 @@ class RecordingController:
             )
 
         except RuntimeError as error:
-            logger.error("Presigned URL generation error for %s: %s", recording_id, error)
+            logger.error("Stream URL generation error for %s: %s", recording_id, error)
             return JSONResponse(
                 status_code=500,
                 content={
@@ -228,11 +231,78 @@ class RecordingController:
             )
 
     @staticmethod
+    async def stream_recording(recording_id, current_user):
+        """
+        GET /api/recordings/<recording_id>/stream
+
+        Proxies the Google Drive video content through the backend so the
+        frontend can embed it in a <video> element without making the Drive
+        file or folder publicly accessible.
+        """
+        try:
+            user_id = str(current_user["id"])
+
+            buffer, mime_type, file_name = recording_service.stream_recording(
+                recording_id=recording_id,
+                user_id=user_id,
+            )
+
+            def _iter_content():
+                chunk_size = 1024 * 1024  # 1 MB
+                while True:
+                    chunk = buffer.read(chunk_size)
+                    if not chunk:
+                        break
+                    yield chunk
+
+            return StreamingResponse(
+                _iter_content(),
+                media_type=mime_type,
+                headers={
+                    "Content-Disposition": f'inline; filename="{file_name}"',
+                    "Cache-Control": "no-store",
+                },
+            )
+
+        except ValueError as error:
+            return JSONResponse(
+                status_code=404,
+                content={
+                    "success": False,
+                    "message": str(error),
+                }
+            )
+
+        except RuntimeError as error:
+            logger.error("Stream error for recording %s: %s", recording_id, error)
+            return JSONResponse(
+                status_code=502,
+                content={
+                    "success": False,
+                    "message": str(error),
+                }
+            )
+
+        except Exception as error:
+            logger.error(
+                "Unexpected error streaming recording %s: %s",
+                recording_id, error,
+            )
+            return JSONResponse(
+                status_code=500,
+                content={
+                    "success": False,
+                    "message": "An unexpected error occurred. Please try again.",
+                }
+            )
+
+    @staticmethod
     async def delete_recording(recording_id, current_user):
         """
         DELETE /api/recordings/<recording_id>
 
-        Deletes a recording's S3 objects and its MongoDB metadata.
+        Deletes a recording's Google Drive file(s) and its MongoDB metadata.
+        Only the recording owner may perform this operation.
         """
         try:
             user_id = str(current_user["id"])
