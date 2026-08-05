@@ -2,12 +2,14 @@
 Main FastAPI Application Entrypoint for GrowCline Assessment & Interview Intelligence Platform.
 """
 
+import os
 import logging
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import HTTPException
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.config.database import Database
 from app.config.settings import Config
@@ -96,6 +98,13 @@ app.include_router(interview_analytics_router)
 app.include_router(interview_router)
 app.include_router(interview_session_router)
 app.include_router(interview_session_analytics_router)
+
+
+# ── Local file uploads (fallback when S3 is not configured) ─────────────────
+_upload_dir = os.path.join(os.path.dirname(__file__), Config.UPLOAD_FOLDER)
+os.makedirs(_upload_dir, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=_upload_dir), name="uploads")
+# ────────────────────────────────────────────────────────────────────────────
 
 
 @app.get("/", summary="Health check endpoint")
