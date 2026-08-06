@@ -51,12 +51,34 @@ SEVERITY_MAPPING = {
     "WINDOW_MINIMIZED": "MEDIUM",
     "FULLSCREEN_EXIT": "MEDIUM",
     "NO_FACE": "MEDIUM",
+    "FACE_MISSING": "MEDIUM",
     "CAMERA_DISABLED": "HIGH",
     "MICROPHONE_DISABLED": "HIGH",
     "MULTIPLE_FACES": "HIGH",
     "BACKGROUND_VOICE": "HIGH",
     "CAMERA_PERMISSION_DENIED": "HIGH",
     "MICROPHONE_PERMISSION_DENIED": "HIGH",
+}
+
+# Per-event-type duplicate suppression window (seconds).
+# Lifecycle events (INFO) use a short 2s window.
+# Real violation events use a longer window so a new genuine occurrence
+# (e.g., candidate leaves again 2 minutes later) is NOT suppressed.
+DUPLICATE_COOLDOWN_SECONDS: dict = {
+    "PROCTORING_STARTED":          2,
+    "PROCTORING_STOPPED":          2,
+    "WINDOW_BLUR":                  5,
+    "TAB_SWITCH":                  30,
+    "WINDOW_MINIMIZED":            30,
+    "FULLSCREEN_EXIT":             30,
+    "NO_FACE":                     30,
+    "FACE_MISSING":                30,
+    "CAMERA_DISABLED":             30,
+    "MICROPHONE_DISABLED":         30,
+    "MULTIPLE_FACES":              30,
+    "BACKGROUND_VOICE":            30,
+    "CAMERA_PERMISSION_DENIED":    30,
+    "MICROPHONE_PERMISSION_DENIED": 30,
 }
 
 # ---------------------------------------------------------------------------
@@ -121,10 +143,19 @@ def _validate_client_timestamp(client_ts) -> None:
             raise ValueError("Client timestamp cannot be in the future.")
 
 
-def _is_duplicate_event(db, interview_id: ObjectId, user_id: ObjectId, event_type: str, cooldown_seconds: int = 2) -> bool:
+def _is_duplicate_event(db, interview_id: ObjectId, user_id: ObjectId, event_type: str, cooldown_seconds: int = None) -> bool:
     """
-    Check if the same event type was logged within the cooldown period.
+    Check if the same event type was logged within the per-event cooldown period.
+
+    Uses DUPLICATE_COOLDOWN_SECONDS[event_type] by default, falling back to
+    the value in Config (or 2 s) if no type-specific window is defined.
     """
+    if cooldown_seconds is None:
+        cooldown_seconds = DUPLICATE_COOLDOWN_SECONDS.get(
+            event_type,
+            int(getattr(Config, "PROCTORING_DUPLICATE_WINDOW_SECONDS", 2))
+        )
+
     latest_event = db[ProctoringLog.COLLECTION].find_one(
         {
             "interviewId": interview_id,
@@ -139,6 +170,10 @@ def _is_duplicate_event(db, interview_id: ObjectId, user_id: ObjectId, event_typ
         if isinstance(latest_ts, datetime):
             elapsed = (datetime.utcnow() - latest_ts).total_seconds()
             if elapsed < cooldown_seconds:
+                logger.debug(
+                    "[ProctoringService] suppressing duplicate %s (last=%.1fs ago, cooldown=%ds)",
+                    event_type, elapsed, cooldown_seconds
+                )
                 return True
 
     return False
@@ -166,9 +201,8 @@ def create_proctoring_event(interview_id: str, user_id: str, event_type: str, cl
     interview_oid = ObjectId(interview_id)
     user_oid = ObjectId(user_id)
 
-    # Duplicate suppression check
-    cooldown = int(getattr(Config, "PROCTORING_DUPLICATE_WINDOW_SECONDS", 2))
-    if _is_duplicate_event(db, interview_oid, user_oid, event_type, cooldown):
+    # Duplicate suppression check (uses per-event cooldown from DUPLICATE_COOLDOWN_SECONDS)
+    if _is_duplicate_event(db, interview_oid, user_oid, event_type):
         # Fetch and return the latest matching duplicate instead of raising an error
         latest = db[ProctoringLog.COLLECTION].find_one(
             {
@@ -215,12 +249,11 @@ def create_proctoring_events_batch(interview_id: str, user_id: str, events: list
     validated_docs = []
     
     # Track the last timestamp we inserted or validated for duplicate checks within this batch
-    last_processed_timestamps = {}
-    cooldown = int(getattr(Config, "PROCTORING_DUPLICATE_WINDOW_SECONDS", 2))
+    last_processed_timestamps: dict = {}
 
     for item in events:
         event_type = item.get("event_type")
-        client_ts = item.get("client_timestamp")
+        client_ts  = item.get("client_timestamp")
 
         # Validate event type
         if event_type not in ALLOWED_EVENT_TYPES:
@@ -230,16 +263,21 @@ def create_proctoring_events_batch(interview_id: str, user_id: str, events: list
         if client_ts:
             _validate_client_timestamp(client_ts)
 
+        # Per-event-type cooldown
+        cooldown = DUPLICATE_COOLDOWN_SECONDS.get(
+            event_type,
+            int(getattr(Config, "PROCTORING_DUPLICATE_WINDOW_SECONDS", 2))
+        )
+
         # Inner-batch duplicate suppression
         now = datetime.utcnow()
         if event_type in last_processed_timestamps:
             elapsed = (now - last_processed_timestamps[event_type]).total_seconds()
             if elapsed < cooldown:
-                # Suppress duplicates within the batch
                 continue
         else:
             # Check against existing database records
-            if _is_duplicate_event(db, interview_oid, user_oid, event_type, cooldown):
+            if _is_duplicate_event(db, interview_oid, user_oid, event_type):
                 continue
 
         last_processed_timestamps[event_type] = now

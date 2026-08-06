@@ -526,12 +526,16 @@ class TestCreateProctoringEvent:
         _current_mock_db["proctoring_logs"].insert_one.assert_not_called()
 
     def test_event_outside_cooldown_stored(self):
-        """Test 18: Different event types or event outside cooldown gets inserted."""
+        """Test 18: Event outside per-event-type cooldown window gets inserted as new document.
+
+        TAB_SWITCH has a 30-second cooldown. An event 35 seconds ago should be
+        treated as a fresh event and produce a new insertion.
+        """
         from app.services import proctoring_service
 
         global _current_mock_db
         old_log = _fake_proctoring_log(event_type="TAB_SWITCH")
-        old_log["timestamp"] = datetime.utcnow() - timedelta(seconds=5)
+        old_log["timestamp"] = datetime.utcnow() - timedelta(seconds=35)  # older than 30s cooldown
 
         mock_logs = MagicMock(
             find_one=MagicMock(return_value=old_log),
@@ -549,6 +553,7 @@ class TestCreateProctoringEvent:
 
         assert result["id"] != str(old_log["_id"])
         mock_logs.insert_one.assert_called_once()
+
 
     def test_different_event_types_not_deduplicated(self):
         """Test 19: Distinct event types logged within 2 seconds are not suppressed."""
