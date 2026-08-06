@@ -18,7 +18,7 @@ import {
 /** How long face must be ABSENT before confirming face-missing violation (ms) */
 const FACE_MISSING_CONFIRM_MS  = 3_000;
 /** How long multiple-face must persist before confirming violation (ms) */
-const MULTIPLE_FACE_CONFIRM_MS = 3_000;
+const MULTIPLE_FACE_CONFIRM_MS = 1_500;
 /** How often to run the canvas face analysis (ms) */
 const ANALYSIS_INTERVAL_MS     = 1_000;
 
@@ -221,8 +221,8 @@ export function VideoStage({
         }
 
         // Thresholds relative to frame size
-        const peakMin   = Math.max(10, totalPixels * 0.010);
-        const valleyMax = Math.max(3,  totalPixels * 0.003);
+        const peakMin   = Math.max(8, totalPixels * 0.005);
+        const valleyMax = Math.max(2, totalPixels * 0.003);
 
         let peaksCount = 0;
         let inPeak     = false;
@@ -231,7 +231,7 @@ export function VideoStage({
         for (let c = 0; c < 16; c++) {
           if (smoothed[c] >= peakMin) {
             if (!inPeak) {
-              if (peaksCount === 0 || valleyGap >= 3) {
+              if (peaksCount === 0 || valleyGap >= 1) {
                 peaksCount++;
                 inPeak    = true;
                 valleyGap = 0;

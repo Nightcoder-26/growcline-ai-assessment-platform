@@ -3,19 +3,14 @@
  *
  * LIFECYCLE:
  *   mount(interviewId)  → registers browser listeners, polls events from MongoDB
- *   activateProctoring()→ enables violation event generation (call on Start Recording)
- *   deactivateProctoring()→ disables violation generation (call before Stop/End)
+ *   activateProctoring()→ enables violation event generation (called on session ready)
+ *   deactivateProctoring()→ disables violation generation (called before Stop/End)
  *   unmount            → cleanup
  *
  * SINGLE SOURCE OF TRUTH:
  *   All Warning Logs, Activity Logs, and Risk Summary are populated exclusively
  *   from MongoDB via GET /api/proctoring/interview/{id}/events.
  *   No local fake counters are ever used.
- *
- * VIOLATION GUARD:
- *   logEvent() is a no-op unless proctoringActive.current === true.
- *   This prevents false violations during page load, permission requests,
- *   question loading, etc.
  */
 
 "use client";
@@ -33,22 +28,22 @@ import type {
 // ---------------------------------------------------------------------------
 
 /** How often to poll backend for fresh events (ms) */
-const POLL_INTERVAL_MS = 3_000;
+const POLL_INTERVAL_MS = 2_500;
 
 /** Max items shown in each list */
 const MAX_ALERTS   = 30;
 const MAX_LOGS     = 50;
 const MAX_TIMELINE = 30;
 
-/** RMS volume (0–1) above which background noise is flagged */
-const NOISE_THRESHOLD = 0.08;
-/** How long noise must sustain before firing an event (ms) */
-const NOISE_SUSTAIN_MS = 1_500;
+/** RMS volume (0–1) above which background voice / mic noise is flagged */
+const NOISE_THRESHOLD = 0.035;
 /** Minimum gap between successive BACKGROUND_VOICE events (ms) */
-const NOISE_COOLDOWN_MS = 15_000;
+const NOISE_COOLDOWN_MS = 6_000;
 
 /** Minimum gap between successive TAB_SWITCH events (ms) */
-const TAB_SWITCH_COOLDOWN_MS = 5_000;
+const TAB_SWITCH_COOLDOWN_MS = 3_000;
+/** Minimum gap between successive FULLSCREEN_EXIT events (ms) */
+const FULLSCREEN_EXIT_COOLDOWN_MS = 3_000;
 
 // ---------------------------------------------------------------------------
 // Server severity → UI severity mapping
@@ -94,7 +89,6 @@ export function useProctoring(
   const [status, setStatus] = useState<ProctoringStatus>({
     faceDetected: true,
     microphone:   true,
-    // Read actual fullscreen state — don't lie with a hardcoded true
     fullscreen:   typeof document !== "undefined" ? !!document.fullscreenElement : false,
     network:      "Excellent",
   });
@@ -106,34 +100,31 @@ export function useProctoring(
 
   // ── Internal refs ─────────────────────────────────────────────────────────
 
-  /** True from mount(interviewId) to unmount — guards polling/cleanup */
   const mountedRef = useRef(false);
 
   /**
-   * True only while recording is ACTIVE.
+   * True while proctoring is ACTIVE.
    * logEvent() is a no-op unless this is true.
-   * Set via activateProctoring() / deactivateProctoring().
    */
   const proctoringActive = useRef(false);
 
   /** Queued events awaiting flush to backend */
   const queue = useRef<QueuedEvent[]>([]);
 
-  // ── Browser event state/cooldown refs ─────────────────────────────────────
+  // ── Cooldown timestamp refs ───────────────────────────────────────────────
 
-  const lastTabSwitchAt     = useRef<number>(0);
-  const isTabVisibleRef     = useRef<boolean>(true);
-  /** True once fullscreen has been ENTERED at least once during this session */
-  const fullscreenWasActive = useRef<boolean>(false);
+  const lastTabSwitchAt      = useRef<number>(0);
+  const lastFullscreenExitAt = useRef<number>(0);
+  const isTabVisibleRef      = useRef<boolean>(true);
 
   // ── Audio analysis refs ───────────────────────────────────────────────────
 
-  const audioCtxRef          = useRef<AudioContext | null>(null);
-  const analyserRef          = useRef<AnalyserNode | null>(null);
-  const micStreamRef         = useRef<MediaStream | null>(null);
-  const noiseAboveSince      = useRef<number | null>(null);
-  const lastNoiseFiredAt     = useRef<number>(0);
-  const noiseRafId           = useRef<number | null>(null);
+  const audioCtxRef       = useRef<AudioContext | null>(null);
+  const analyserRef       = useRef<AnalyserNode | null>(null);
+  const micStreamRef      = useRef<MediaStream | null>(null);
+  const noiseFrameCount   = useRef<number>(0);
+  const lastNoiseFiredAt  = useRef<number>(0);
+  const noiseRafId        = useRef<number | null>(null);
 
   // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -172,7 +163,7 @@ export function useProctoring(
         timestamp: string;
       }> = res.data?.data?.events ?? [];
 
-      // Separate violation events from lifecycle events for display purposes
+      // Filter out lifecycle INFO events from warning logs
       const violations = rawEvents.filter(
         (e) =>
           e.eventType !== "PROCTORING_STARTED" &&
@@ -206,7 +197,6 @@ export function useProctoring(
       setLogs(logList.slice(0, MAX_LOGS));
       setTimeline(timelineList.slice(0, MAX_TIMELINE));
     } catch (err) {
-      // Non-fatal: display stale data
       console.warn("[PROCTOR] poll error:", err instanceof Error ? err.message : err);
     }
   }, [interviewId]);
@@ -226,14 +216,12 @@ export function useProctoring(
         interview_id: interviewId,
         events:       batch,
       });
-      console.log("[PROCTOR] backend accepted events");
 
       // Immediately re-poll so UI reflects persisted events
       await pollEvents();
       onEventLogged?.();
     } catch (err) {
       console.warn("[PROCTOR] flush failed, re-queuing:", err instanceof Error ? err.message : err);
-      // Re-queue so events are retried on next flush
       queue.current = [...batch, ...queue.current];
     }
   }, [interviewId, onEventLogged, pollEvents]);
@@ -247,7 +235,7 @@ export function useProctoring(
         return;
       }
       if (!proctoringActive.current) {
-        console.log(`[PROCTOR] logEvent(${eventType}) skipped — proctoring not active (recording not started)`);
+        console.log(`[PROCTOR] logEvent(${eventType}) skipped — proctoring not active`);
         return;
       }
 
@@ -257,13 +245,12 @@ export function useProctoring(
         client_timestamp: new Date().toISOString(),
       });
 
-      // Flush immediately with a tiny debounce so multiple synchronous pushes batch together
       setTimeout(() => flushQueue(), 100);
     },
     [interviewId, flushQueue],
   );
 
-  // ── Audio noise detection ─────────────────────────────────────────────────
+  // ── Audio noise / background voice detection ──────────────────────────────
 
   const startNoiseDetection = useCallback(() => {
     if (typeof window === "undefined") return;
@@ -305,18 +292,22 @@ export function useProctoring(
 
           const now = Date.now();
           if (rms > NOISE_THRESHOLD) {
-            if (noiseAboveSince.current === null) {
-              noiseAboveSince.current = now;
-            } else if (
-              now - noiseAboveSince.current >= NOISE_SUSTAIN_MS &&
+            noiseFrameCount.current += 1;
+            // If accumulated speech energy reaches 12 frames (~200ms) and outside cooldown
+            if (
+              noiseFrameCount.current >= 12 &&
               now - lastNoiseFiredAt.current >= NOISE_COOLDOWN_MS
             ) {
-              lastNoiseFiredAt.current  = now;
-              noiseAboveSince.current   = null;
+              lastNoiseFiredAt.current = now;
+              noiseFrameCount.current = 0;
+              console.log("[PROCTOR] background speech / noise detected → BACKGROUND_VOICE");
               logEvent("BACKGROUND_VOICE");
             }
           } else {
-            noiseAboveSince.current = null;
+            // Decay noise frame count smoothly rather than hard-reset
+            if (noiseFrameCount.current > 0) {
+              noiseFrameCount.current -= 0.5;
+            }
           }
 
           noiseRafId.current = requestAnimationFrame(tick);
@@ -342,50 +333,36 @@ export function useProctoring(
     micStreamRef.current = null;
   }, []);
 
-  // ── Public: activate proctoring (call on Start Recording) ────────────────
+  // ── Public: activate proctoring ──────────────────────────────────────────
 
-  /**
-   * Enable violation event generation.
-   * Must be called from the Start Recording user gesture after fullscreen entry.
-   */
   const activateProctoring = useCallback(() => {
-    if (proctoringActive.current) return; // already active
+    if (proctoringActive.current) return;
     console.log("[PROCTOR] session activated");
     proctoringActive.current = true;
 
-    // Log session start to backend
     queue.current.push({
       event_type:       "PROCTORING_STARTED",
       client_timestamp: new Date().toISOString(),
     });
     setTimeout(() => flushQueue(), 100);
 
-    // Start microphone noise monitoring now that recording is active
     startNoiseDetection();
   }, [flushQueue, startNoiseDetection]);
 
-  // ── Public: deactivate proctoring (call before Stop Recording / End) ──────
+  // ── Public: deactivate proctoring ────────────────────────────────────────
 
-  /**
-   * Disable violation event generation.
-   * Must be called BEFORE stopping/ending the interview, so the resulting
-   * fullscreen exit does NOT generate a FULLSCREEN_EXIT violation.
-   */
   const deactivateProctoring = useCallback(() => {
     if (!proctoringActive.current) return;
     console.log("[PROCTOR] session deactivated");
     proctoringActive.current = false;
-    fullscreenWasActive.current = false;
 
-    // Stop mic monitoring
     stopNoiseDetection();
 
-    // Log session stop
     queue.current.push({
       event_type:       "PROCTORING_STOPPED",
       client_timestamp: new Date().toISOString(),
     });
-    // Use a direct flush (proctoringActive is now false so logEvent would skip)
+
     if (interviewId && mountedRef.current) {
       const batch = [...queue.current];
       queue.current = [];
@@ -398,67 +375,63 @@ export function useProctoring(
     }
   }, [interviewId, stopNoiseDetection]);
 
-  // ── Browser event listeners (registered on mount, not on activation) ──────
+  // ── Browser event listeners ───────────────────────────────────────────────
 
   useEffect(() => {
     if (!interviewId) return;
 
     mountedRef.current = true;
 
-    // Sync fullscreen state with actual browser state
     setStatus((prev) => ({
       ...prev,
       fullscreen: !!document.fullscreenElement,
     }));
 
-    // Load existing events from MongoDB (for page refresh recovery)
     pollEvents();
 
-    // Periodic poll
     const pollTimer = setInterval(pollEvents, POLL_INTERVAL_MS);
 
-    // ── visibilitychange — tab switching ────────────────────────────────────
-    const handleVisibility = () => {
+    // ── Tab switch & window blur detection ──────────────────────────────────
+    const triggerTabSwitch = (source: string) => {
       const now = Date.now();
+      if (now - lastTabSwitchAt.current >= TAB_SWITCH_COOLDOWN_MS) {
+        lastTabSwitchAt.current = now;
+        isTabVisibleRef.current = false;
+        console.log(`[PROCTOR] ${source} → TAB_SWITCH`);
+        logEvent("TAB_SWITCH");
+      }
+    };
+
+    const handleVisibility = () => {
       if (document.hidden) {
-        if (
-          isTabVisibleRef.current &&
-          now - lastTabSwitchAt.current >= TAB_SWITCH_COOLDOWN_MS
-        ) {
-          isTabVisibleRef.current  = false;
-          lastTabSwitchAt.current  = now;
-          console.log("[PROCTOR] tab hidden → TAB_SWITCH");
-          logEvent("TAB_SWITCH");
-        }
+        triggerTabSwitch("visibilitychange (tab hidden)");
       } else {
         isTabVisibleRef.current = true;
       }
     };
 
-    // ── fullscreenchange ────────────────────────────────────────────────────
+    const handleBlur = () => {
+      triggerTabSwitch("window blur (focus lost)");
+    };
+
+    // ── Fullscreen exit detection ───────────────────────────────────────────
     const handleFullscreenChange = () => {
-      if (document.fullscreenElement) {
-        // Entered fullscreen
-        fullscreenWasActive.current = true;
-        setStatus((prev) => ({ ...prev, fullscreen: true }));
-        console.log("[PROCTOR] fullscreen entered");
-      } else {
-        // Exited fullscreen — only count as violation if:
-        // 1. fullscreen was actually active this session
-        // 2. proctoring is currently active (recording in progress)
-        setStatus((prev) => ({ ...prev, fullscreen: false }));
-        if (fullscreenWasActive.current && proctoringActive.current) {
+      const isFS = !!document.fullscreenElement;
+      setStatus((prev) => ({ ...prev, fullscreen: isFS }));
+
+      if (!isFS && proctoringActive.current) {
+        const now = Date.now();
+        if (now - lastFullscreenExitAt.current >= FULLSCREEN_EXIT_COOLDOWN_MS) {
+          lastFullscreenExitAt.current = now;
           console.log("[PROCTOR] fullscreen exited → FULLSCREEN_EXIT");
           logEvent("FULLSCREEN_EXIT");
-        } else {
-          console.log("[PROCTOR] fullscreen exited — not logging violation (proctoring not active or fullscreen was never entered)");
         }
-        fullscreenWasActive.current = false;
       }
     };
 
-    document.addEventListener("visibilitychange",  handleVisibility);
-    document.addEventListener("fullscreenchange",   handleFullscreenChange);
+    document.addEventListener("visibilitychange", handleVisibility);
+    window.addEventListener("blur",               handleBlur);
+    document.addEventListener("fullscreenchange",  handleFullscreenChange);
 
     return () => {
       mountedRef.current       = false;
@@ -466,8 +439,9 @@ export function useProctoring(
 
       stopNoiseDetection();
 
-      document.removeEventListener("visibilitychange",  handleVisibility);
-      document.removeEventListener("fullscreenchange",   handleFullscreenChange);
+      document.removeEventListener("visibilitychange", handleVisibility);
+      window.removeEventListener("blur",               handleBlur);
+      document.removeEventListener("fullscreenchange",  handleFullscreenChange);
       clearInterval(pollTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -476,30 +450,15 @@ export function useProctoring(
   // ── Public API ────────────────────────────────────────────────────────────
 
   return {
-    /** Live status booleans for the Candidate Monitoring panel */
     status,
     setStatus,
-
-    /** Warning alerts from confirmed backend events */
     alerts,
-    /** Activity log entries from backend events */
     logs,
-    /** Timeline entries for warning timeline component */
     timeline,
-
-    /** Report a violation event (no-op unless proctoring is active) */
     logEvent,
-
-    /** Force a backend poll to refresh warning logs */
     pollEvents,
-
-    /** Enable violation logging — call from Start Recording user gesture */
     activateProctoring,
-
-    /** Disable violation logging — call BEFORE stopping recording / ending session */
     deactivateProctoring,
-
-    /** Any display-level error string */
     error,
   };
 }
