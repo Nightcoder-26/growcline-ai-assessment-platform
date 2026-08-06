@@ -89,7 +89,7 @@ export function VideoStage({
   const multiStateRef    = useRef<MultiState>("NORMAL");
   const multipleSinceRef = useRef<number | null>(null);
 
-  // Keep a ref to the recording flag so the interval callback always reads current value
+  // Keep a ref to the recording flag (for UI display indicators only — not used as a violation gate)
   const recordingRef = useRef(recording);
   useEffect(() => { recordingRef.current = recording; }, [recording]);
 
@@ -192,13 +192,9 @@ export function VideoStage({
               now - missingSinceRef.current >= FACE_MISSING_CONFIRM_MS
             ) {
               faceStateRef.current = "ACTIVE_MISSING";
-              console.log("[PROCTOR] FACE_MISSING confirmed");
-              // Only fire a violation if we're actively recording
-              if (recordingRef.current) {
-                console.log("[PROCTOR] reporting FACE_MISSING (via onFacePresenceChange)");
-                // onFacePresenceChange(false) is also what triggers logEvent("NO_FACE") in the parent
-                // It was already called at PENDING transition for UI; parent's logEvent guards itself
-              }
+              console.log("[DETECTOR] FACE_MISSING confirmed after", FACE_MISSING_CONFIRM_MS, "ms");
+              // Always fire the callback — logEvent() in useProctoring is the authoritative gate
+              onFacePresenceChange?.(false);
             }
           }
           // ACTIVE_MISSING: already notified, do nothing until face returns
@@ -259,12 +255,9 @@ export function VideoStage({
               now - multipleSinceRef.current >= MULTIPLE_FACE_CONFIRM_MS
             ) {
               multiStateRef.current = "ACTIVE_MULTIPLE";
-              console.log("[PROCTOR] MULTIPLE_FACES confirmed");
-              // Only fire violation if recording is active
-              if (recordingRef.current) {
-                console.log("[PROCTOR] reporting MULTIPLE_FACES");
-                onMultipleFacesDetected?.();
-              }
+              console.log("[DETECTOR] MULTIPLE_FACES confirmed after", MULTIPLE_FACE_CONFIRM_MS, "ms");
+              // Always fire — logEvent() in useProctoring gates the actual backend call
+              onMultipleFacesDetected?.();
             }
           }
           // ACTIVE_MULTIPLE: violation already sent, stay quiet until reset
