@@ -365,18 +365,6 @@ export function useProctoring(
     });
     setTimeout(() => flushQueue(), 100);
 
-    // If starting in windowed mode, log initial FULLSCREEN_EXIT violation immediately
-    if (!checkIsFullscreen()) {
-      const now = Date.now();
-      lastFullscreenExitAt.current = now;
-      console.log("[PROCTOR] session started in windowed mode → FULLSCREEN_EXIT");
-      queue.current.push({
-        event_type:       "FULLSCREEN_EXIT",
-        client_timestamp: new Date().toISOString(),
-      });
-      setTimeout(() => flushQueue(), 150);
-    }
-
     startNoiseDetection();
   }, [flushQueue, startNoiseDetection]);
 
@@ -450,7 +438,11 @@ export function useProctoring(
       const isFS = checkIsFullscreen();
       setStatus((prev) => ({ ...prev, fullscreen: isFS }));
 
-      if (!isFS && proctoringActive.current) {
+      if (isFS) {
+        // Reset exit timestamp when entering fullscreen so next exit is logged immediately
+        lastFullscreenExitAt.current = 0;
+        console.log("[PROCTOR] fullscreen entered / active");
+      } else if (proctoringActive.current) {
         const now = Date.now();
         if (now - lastFullscreenExitAt.current >= FULLSCREEN_EXIT_COOLDOWN_MS) {
           lastFullscreenExitAt.current = now;

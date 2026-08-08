@@ -18,7 +18,7 @@ import {
 /** How long face must be ABSENT before confirming face-missing violation (ms) */
 const FACE_MISSING_CONFIRM_MS  = 1_500;
 /** How long multiple-face must persist before confirming violation (ms) */
-const MULTIPLE_FACE_CONFIRM_MS = 1_500;
+const MULTIPLE_FACE_CONFIRM_MS = 600;
 /** How often to run the canvas face analysis (ms) */
 const ANALYSIS_INTERVAL_MS     = 1_000;
 
@@ -214,7 +214,6 @@ export function VideoStage({
         // ── Multiple Faces State Machine ────────────────────────────────────
 
         // Spatial peak analysis: smooth the 16-column skin-count histogram
-        // and detect ≥2 distinct peaks separated by a genuine valley.
         const smoothed = new Array(16).fill(0);
         for (let c = 0; c < 16; c++) {
           const prev = c > 0  ? colSkinCounts[c - 1] : colSkinCounts[c];
@@ -222,30 +221,32 @@ export function VideoStage({
           smoothed[c] = prev * 0.25 + colSkinCounts[c] * 0.5 + next * 0.25;
         }
 
-        // Thresholds relative to frame size
-        const peakMin   = Math.max(8, totalPixels * 0.005);
-        const valleyMax = Math.max(2, totalPixels * 0.003);
+        const peakMin = Math.max(6, totalPixels * 0.004);
 
-        let peaksCount = 0;
-        let inPeak     = false;
-        let valleyGap  = 0;
+        // Find local maxima (distinct skin clusters / faces)
+        let localPeaks = 0;
+        let lastPeakCol = -5;
 
         for (let c = 0; c < 16; c++) {
-          if (smoothed[c] >= peakMin) {
-            if (!inPeak) {
-              if (peaksCount === 0 || valleyGap >= 1) {
-                peaksCount++;
-                inPeak    = true;
-                valleyGap = 0;
+          const val = smoothed[c];
+          if (val >= peakMin) {
+            const leftVal  = c > 0  ? smoothed[c - 1] : 0;
+            const rightVal = c < 15 ? smoothed[c + 1] : 0;
+
+            if (val >= leftVal && val >= rightVal) {
+              if (c - lastPeakCol >= 2) {
+                localPeaks++;
+                lastPeakCol = c;
               }
             }
-          } else if (smoothed[c] <= valleyMax) {
-            if (inPeak) inPeak = false;
-            valleyGap++;
           }
         }
 
-        const multipleFacesDetected = isPresent && peaksCount >= 2;
+        // Multiple faces detected if:
+        // 1) 2 or more distinct spatial skin peaks (e.g. face + phone photo of face)
+        // 2) Skin area exceeds 18% of frame while candidate is present (2 subjects in frame)
+        const multipleFacesDetected =
+          isPresent && (localPeaks >= 2 || skinRatio >= 0.18);
 
         if (multipleFacesDetected) {
           if (multiStateRef.current === "NORMAL") {
