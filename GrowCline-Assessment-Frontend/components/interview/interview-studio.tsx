@@ -10,6 +10,7 @@ import { VideoStage }        from "./video-stage";
 import { QuestionPanel }     from "./question-panel";
 import { RecordingControls } from "./recording-controls";
 import { SessionMetrics }    from "./session-metrics";
+import { AlertCircle, CheckCircle2, X } from "lucide-react";
 
 // ── Live Proctoring embeds ─────────────────────────────────────────────────
 import { StatusPanel } from "@/components/live-proctoring/status-panel";
@@ -88,7 +89,7 @@ export function InterviewStudio() {
   const [sessionStarted,        setSessionStarted]        = useState(false);
   const [sessionEnded,          setSessionEnded]          = useState(false);
   const [uploadStatus,          setUploadStatus]          = useState<"idle" | "uploading" | "done" | "error">("idle");
-  const [toastMsg,              setToastMsg]              = useState<string | null>(null);
+  const [toastMsg,              setToastMsg]              = useState<{ text: string; isError?: boolean } | null>(null);
   const [candidateAnswerText,   setCandidateAnswerText]   = useState("");
   const [answeredIds,           setAnsweredIds]           = useState<Set<string>>(new Set());
 
@@ -249,10 +250,10 @@ export function InterviewStudio() {
 
   // ── Toast ──────────────────────────────────────────────────────────────────
 
-  const showToast = (msg: string, _isError = false) => {
-    setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 4_000);
-  };
+  const showToast = useCallback((msg: string, isError = false) => {
+    setToastMsg({ text: msg, isError });
+    setTimeout(() => setToastMsg(null), 8_000);
+  }, []);
 
   // ── Start Recording (user gesture — request fullscreen HERE) ──────────────
 
@@ -450,19 +451,44 @@ export function InterviewStudio() {
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
 
-      {/* Toast */}
+      {/* Toast Notification */}
       {toastMsg && (
-        <div className="fixed top-4 right-4 z-50 max-w-sm rounded-2xl bg-[#1E293B] border border-white/10 px-5 py-3 text-white shadow-xl text-sm">
-          {toastMsg}
+        <div
+          className={`fixed top-6 right-6 z-[9999] max-w-md w-full rounded-2xl border px-5 py-4 text-white shadow-2xl backdrop-blur-xl flex items-start gap-3 transition-all duration-300 ${
+            toastMsg.isError
+              ? "bg-[#1E293B]/95 border-red-500/40 text-red-100 shadow-[0_10px_30px_rgba(239,68,68,0.25)]"
+              : "bg-[#1E293B]/95 border-[#4096ff]/40 text-blue-100 shadow-[0_10px_30px_rgba(64,150,255,0.25)]"
+          }`}
+        >
+          {toastMsg.isError ? (
+            <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+          ) : (
+            <CheckCircle2 className="w-5 h-5 text-[#4096ff] shrink-0 mt-0.5" />
+          )}
+          <div className="flex-1 min-w-0 pr-1">
+            <p className="text-[13px] font-bold tracking-tight text-white">
+              {toastMsg.isError ? "System / Upload Notice" : "Notification"}
+            </p>
+            <p className="text-[12.5px] leading-relaxed mt-0.5 break-words font-medium opacity-90">
+              {toastMsg.text}
+            </p>
+          </div>
+          <button
+            onClick={() => setToastMsg(null)}
+            className="text-white/60 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10 shrink-0"
+            title="Dismiss notification"
+          >
+            <X size={15} />
+          </button>
         </div>
       )}
 
       {/* Fullscreen error banner */}
       {fullscreenError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-md rounded-2xl bg-amber-900/90 border border-amber-500/40 px-5 py-3 text-amber-100 shadow-xl text-sm flex items-center gap-3">
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] max-w-md rounded-2xl bg-amber-900/95 border border-amber-500/50 px-5 py-3.5 text-amber-100 shadow-2xl text-sm flex items-center gap-3 backdrop-blur-xl">
           <span>⚠️ {fullscreenError}</span>
           <button
-            className="ml-auto text-amber-300 hover:text-white underline text-xs whitespace-nowrap"
+            className="ml-auto text-amber-300 hover:text-white underline text-xs whitespace-nowrap font-semibold"
             onClick={async () => {
               try {
                 await document.documentElement.requestFullscreen();
@@ -477,7 +503,7 @@ export function InterviewStudio() {
 
       {/* Interview error banner */}
       {interviewError && (
-        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-md rounded-2xl bg-rose-900/90 border border-rose-500/40 px-5 py-3 text-rose-100 shadow-xl text-sm">
+        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-[9999] max-w-md rounded-2xl bg-rose-900/95 border border-rose-500/50 px-5 py-3.5 text-rose-100 shadow-2xl text-sm backdrop-blur-xl">
           ⚠️ {interviewError}
         </div>
       )}
