@@ -16,6 +16,7 @@ import {
   Loader2, Clock, CheckCircle2, AlertCircle,
 } from "lucide-react";
 import AppShell from "@/components/assessment/AppShell";
+import DashboardGuideBanner from "@/components/assessment/DashboardGuideBanner";
 import { getCandidateResults, type AssessmentResult } from "@/services/assessmentService";
 import { getStoredUser, getStoredToken } from "@/services/authService";
 
@@ -285,6 +286,9 @@ export default function DashboardPage() {
           </div>
 
         </div>
+
+        {/* ── Platform Guide & How-To Showcase Banner ─────────── */}
+        <DashboardGuideBanner />
       </div>
     </AppShell>
   );
