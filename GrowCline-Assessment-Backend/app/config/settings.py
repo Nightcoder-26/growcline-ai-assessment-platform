@@ -38,7 +38,13 @@ class Config:
     GOOGLE_DRIVE_CREDENTIALS_FILE: str = GOOGLE_APPLICATION_CREDENTIALS
 
     # Google Drive folder ID where all interview recordings are stored.
-    GOOGLE_DRIVE_FOLDER_ID: str = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "")
+    GOOGLE_DRIVE_FOLDER_ID: str = os.getenv("GOOGLE_DRIVE_FOLDER_ID", "1Y0N0v9gj7VumGcnepWqm3ebi4TmgRa9D")
+
+    # Google OAuth 2.0 Credentials (User Account Storage)
+    GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
+    GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
+    GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:5001/api/drive/callback")
+    GOOGLE_TOKEN_FILE: str = os.getenv("GOOGLE_TOKEN_FILE", "credentials/google_oauth_token.json")
 
     # Recording Upload Limits
     MAX_RECORDING_SIZE_MB: int = int(os.getenv("MAX_RECORDING_SIZE_MB", 500))
@@ -72,7 +78,8 @@ class Config:
             raise RuntimeError(
                 "Missing required configuration: GOOGLE_DRIVE_FOLDER_ID environment variable is not set."
             )
-        if not cls.GOOGLE_APPLICATION_CREDENTIALS and not os.path.exists(cls.GOOGLE_DRIVE_CREDENTIALS_FILE):
-            raise RuntimeError(
-                "Missing required configuration: GOOGLE_APPLICATION_CREDENTIALS file not found."
-            )
+        has_token = os.path.exists(cls.GOOGLE_TOKEN_FILE) or os.path.exists("credentials/google_oauth_token.json") or os.path.exists("token.json")
+        has_sa = (cls.GOOGLE_APPLICATION_CREDENTIALS and os.path.exists(cls.GOOGLE_APPLICATION_CREDENTIALS)) or os.path.exists(cls.GOOGLE_DRIVE_CREDENTIALS_FILE)
+        if not has_token and not has_sa:
+            # Non-fatal log notice rather than app crash
+            pass

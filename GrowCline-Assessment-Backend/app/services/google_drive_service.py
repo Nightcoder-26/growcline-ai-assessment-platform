@@ -73,10 +73,36 @@ def _resolve_credentials_file() -> Optional[str]:
     return None
 
 
+def _resolve_oauth_token_file() -> Optional[str]:
+    """
+    Search candidate paths for the User OAuth JSON token file.
+    Returns the absolute or relative path to a valid existing file, or None.
+    """
+    try:
+        from app.config.settings import Config
+    except ImportError:
+        from config.settings import Config  # type: ignore
+
+    candidates = [
+        getattr(Config, "GOOGLE_TOKEN_FILE", None),
+        os.environ.get("GOOGLE_TOKEN_FILE"),
+        "credentials/google_oauth_token.json",
+        "tokens/google_oauth_token.json",
+        "token.json",
+    ]
+
+    for candidate in candidates:
+        if candidate and os.path.isfile(candidate):
+            return candidate
+    return None
+
+
 def _build_drive_service():
     """
     Build and return an authenticated Google Drive v3 service object.
-    Uses a cached instance if already initialized.
+    Priority 1: User OAuth 2.0 Credentials (from token file)
+    Priority 2: Service Account JSON Credentials
+    Priority 3: Application Default Credentials
 
     Returns:
         googleapiclient Resource — the authenticated Drive v3 service.
@@ -94,6 +120,32 @@ def _build_drive_service():
             "Run: pip install google-api-python-client google-auth google-auth-httplib2"
         )
 
+    # ── Priority 1: User OAuth 2.0 Credentials ───────────────────────────────
+    token_file = _resolve_oauth_token_file()
+    if token_file:
+        try:
+            from google.oauth2.credentials import Credentials
+            from google.auth.transport.requests import Request
+
+            creds = Credentials.from_authorized_user_file(token_file, scopes=_DRIVE_SCOPES)
+            if creds and creds.expired and creds.refresh_token:
+                logger.info("Google Drive: refreshing expired OAuth access token...")
+                creds.refresh(Request())
+                try:
+                    with open(token_file, "w", encoding="utf-8") as f:
+                        f.write(creds.to_json())
+                except Exception as w_err:
+                    logger.warning("Could not persist refreshed OAuth token to file: %s", w_err)
+
+            if creds and creds.valid:
+                service = build("drive", "v3", credentials=creds, cache_discovery=False)
+                _drive_service_instance = service
+                logger.info("Google Drive: authenticated via OAuth 2.0 User Account.")
+                return service
+        except Exception as exc:
+            logger.warning("Google Drive: OAuth token authentication failed, attempting fallback: %s", exc)
+
+    # ── Priority 2 & 3: Service Account / ADC ────────────────────────────────
     credentials_file = _resolve_credentials_file()
     credentials = None
 
@@ -103,7 +155,6 @@ def _build_drive_service():
                 credentials_file,
                 scopes=_DRIVE_SCOPES,
             )
-            # Set environment variable so standard google libraries pick it up
             os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = credentials_file
             logger.debug("Google Drive: authenticated via service account file.")
         except Exception as exc:
@@ -117,7 +168,7 @@ def _build_drive_service():
         except Exception as exc:
             raise RuntimeError(
                 "Google Drive authentication failed. "
-                "Set GOOGLE_APPLICATION_CREDENTIALS or configure Application Default Credentials. "
+                "Configure OAuth token file, GOOGLE_APPLICATION_CREDENTIALS, or Application Default Credentials. "
                 f"Details: {exc}"
             ) from exc
 

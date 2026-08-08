@@ -78,5 +78,10 @@ desktop.ini
 # NEVER commit these files to Git.
 # ===========================
 credentials/
+tokens/
 *_credentials.json
 *service_account*.json
+*oauth*.json
+token.json
+token.pickle
+token.json*
