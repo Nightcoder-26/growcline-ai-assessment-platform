@@ -46,6 +46,26 @@ const TAB_SWITCH_COOLDOWN_MS = 3_000;
 const FULLSCREEN_EXIT_COOLDOWN_MS = 3_000;
 
 // ---------------------------------------------------------------------------
+// Cross-browser Fullscreen Detector
+// ---------------------------------------------------------------------------
+
+const checkIsFullscreen = (): boolean => {
+  if (typeof document === "undefined") return false;
+  const doc = document as unknown as {
+    fullscreenElement?:       Element;
+    webkitFullscreenElement?: Element;
+    mozFullScreenElement?:    Element;
+    msFullscreenElement?:     Element;
+  };
+  return !!(
+    doc.fullscreenElement ||
+    doc.webkitFullscreenElement ||
+    doc.mozFullScreenElement ||
+    doc.msFullscreenElement
+  );
+};
+
+// ---------------------------------------------------------------------------
 // Server severity → UI severity mapping
 // ---------------------------------------------------------------------------
 
@@ -89,7 +109,7 @@ export function useProctoring(
   const [status, setStatus] = useState<ProctoringStatus>({
     faceDetected: true,
     microphone:   true,
-    fullscreen:   typeof document !== "undefined" ? !!document.fullscreenElement : false,
+    fullscreen:   checkIsFullscreen(),
     network:      "Excellent",
   });
 
@@ -304,7 +324,6 @@ export function useProctoring(
               logEvent("BACKGROUND_VOICE");
             }
           } else {
-            // Decay noise frame count smoothly rather than hard-reset
             if (noiseFrameCount.current > 0) {
               noiseFrameCount.current -= 0.5;
             }
@@ -346,6 +365,18 @@ export function useProctoring(
     });
     setTimeout(() => flushQueue(), 100);
 
+    // If starting in windowed mode, log initial FULLSCREEN_EXIT violation immediately
+    if (!checkIsFullscreen()) {
+      const now = Date.now();
+      lastFullscreenExitAt.current = now;
+      console.log("[PROCTOR] session started in windowed mode → FULLSCREEN_EXIT");
+      queue.current.push({
+        event_type:       "FULLSCREEN_EXIT",
+        client_timestamp: new Date().toISOString(),
+      });
+      setTimeout(() => flushQueue(), 150);
+    }
+
     startNoiseDetection();
   }, [flushQueue, startNoiseDetection]);
 
@@ -384,7 +415,7 @@ export function useProctoring(
 
     setStatus((prev) => ({
       ...prev,
-      fullscreen: !!document.fullscreenElement,
+      fullscreen: checkIsFullscreen(),
     }));
 
     pollEvents();
@@ -416,7 +447,7 @@ export function useProctoring(
 
     // ── Fullscreen exit detection ───────────────────────────────────────────
     const handleFullscreenChange = () => {
-      const isFS = !!document.fullscreenElement;
+      const isFS = checkIsFullscreen();
       setStatus((prev) => ({ ...prev, fullscreen: isFS }));
 
       if (!isFS && proctoringActive.current) {
@@ -429,9 +460,13 @@ export function useProctoring(
       }
     };
 
-    document.addEventListener("visibilitychange", handleVisibility);
-    window.addEventListener("blur",               handleBlur);
-    document.addEventListener("fullscreenchange",  handleFullscreenChange);
+    document.addEventListener("visibilitychange",       handleVisibility);
+    window.addEventListener("blur",                     handleBlur);
+    document.addEventListener("fullscreenchange",        handleFullscreenChange);
+    document.addEventListener("webkitfullscreenchange",  handleFullscreenChange);
+    document.addEventListener("mozfullscreenchange",     handleFullscreenChange);
+    document.addEventListener("MSFullscreenChange",      handleFullscreenChange);
+    window.addEventListener("resize",                   handleFullscreenChange);
 
     return () => {
       mountedRef.current       = false;
@@ -439,9 +474,13 @@ export function useProctoring(
 
       stopNoiseDetection();
 
-      document.removeEventListener("visibilitychange", handleVisibility);
-      window.removeEventListener("blur",               handleBlur);
-      document.removeEventListener("fullscreenchange",  handleFullscreenChange);
+      document.removeEventListener("visibilitychange",       handleVisibility);
+      window.removeEventListener("blur",                     handleBlur);
+      document.removeEventListener("fullscreenchange",        handleFullscreenChange);
+      document.removeEventListener("webkitfullscreenchange",  handleFullscreenChange);
+      document.removeEventListener("mozfullscreenchange",     handleFullscreenChange);
+      document.removeEventListener("MSFullscreenChange",      handleFullscreenChange);
+      window.removeEventListener("resize",                   handleFullscreenChange);
       clearInterval(pollTimer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps

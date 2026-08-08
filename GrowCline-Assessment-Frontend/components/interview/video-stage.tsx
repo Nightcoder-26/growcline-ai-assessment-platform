@@ -16,7 +16,7 @@ import {
 // ---------------------------------------------------------------------------
 
 /** How long face must be ABSENT before confirming face-missing violation (ms) */
-const FACE_MISSING_CONFIRM_MS  = 3_000;
+const FACE_MISSING_CONFIRM_MS  = 1_500;
 /** How long multiple-face must persist before confirming violation (ms) */
 const MULTIPLE_FACE_CONFIRM_MS = 1_500;
 /** How often to run the canvas face analysis (ms) */
@@ -172,9 +172,11 @@ export function VideoStage({
         const avgLuma   = totalLuma / totalPixels;
         const skinRatio = skinLikePixels / totalPixels;
 
-        // A subject is considered present if the image is adequately lit AND
-        // has a reasonable amount of skin-tone content.
-        const isPresent = avgLuma > 12 && skinRatio > 0.03;
+        // A candidate subject is considered present if:
+        // 1. Frame is adequately lit (avgLuma >= 15)
+        // 2. Contains a valid face/neck skin area (skinRatio >= 0.03)
+        // 3. Camera lens is NOT covered by a hand/finger (skinRatio <= 0.35)
+        const isPresent = avgLuma >= 15 && skinRatio >= 0.03 && skinRatio <= 0.35;
 
         const now = Date.now();
 
