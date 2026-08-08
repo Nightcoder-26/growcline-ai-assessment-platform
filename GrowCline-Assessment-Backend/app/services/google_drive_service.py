@@ -237,25 +237,59 @@ class GoogleDriveService:
         except Exception:
             pass  # Some streams do not support seek
 
+        import socket
+        socket.setdefaulttimeout(120)
+
         media = MediaIoBaseUpload(
             file_stream,
             mimetype=mime_type,
             resumable=True,
-            chunksize=8 * 1024 * 1024,  # 8 MB chunks
+            chunksize=1024 * 1024,  # 1 MB chunks for reliable SSL streaming
         )
 
         try:
             logger.info("Google Drive: starting upload of '%s' to folder '%s'.", file_name, folder_id)
-            response = (
-                service.files()
-                .create(
-                    body=file_metadata,
-                    media_body=media,
-                    fields="id,name,size,mimeType",
-                )
-                .execute()
+            request = service.files().create(
+                body=file_metadata,
+                media_body=media,
+                fields="id,name,size,mimeType",
             )
-            drive_file_id = response.get("id")
+
+            response = None
+            retry_count = 0
+            max_retries = 3
+
+            while response is None:
+                try:
+                    status, response = request.next_chunk(num_retries=3)
+                    if status:
+                        logger.debug(
+                            "Google Drive: uploaded %d%% of '%s'",
+                            int(status.progress() * 100),
+                            file_name,
+                        )
+                except Exception as exc:
+                    err_str = str(exc)
+                    if (
+                        "EOF" in err_str
+                        or "ssl" in err_str.lower()
+                        or "socket" in err_str.lower()
+                        or "connection" in err_str.lower()
+                    ) and retry_count < max_retries:
+                        retry_count += 1
+                        logger.warning(
+                            "Google Drive: SSL socket connection drop during upload of '%s', retrying attempt %d/%d: %s",
+                            file_name,
+                            retry_count,
+                            max_retries,
+                            exc,
+                        )
+                        import time
+                        time.sleep(1)
+                        continue
+                    raise
+
+            drive_file_id = response.get("id") if response else None
             logger.info(
                 "Google Drive: upload completed. file_name='%s' drive_file_id='%s'.",
                 file_name,
@@ -286,6 +320,11 @@ class GoogleDriveService:
 
         except Exception as exc:
             logger.error("Google Drive: unexpected error during upload of '%s': %s", file_name, exc)
+            err_msg = str(exc)
+            if "EOF" in err_msg or "ssl" in err_msg.lower():
+                raise RuntimeError(
+                    "Google Drive upload failed due to a temporary SSL connection drop. Please click Upload again to retry."
+                ) from exc
             raise RuntimeError(
                 f"Google Drive upload failed: {exc}"
             ) from exc
