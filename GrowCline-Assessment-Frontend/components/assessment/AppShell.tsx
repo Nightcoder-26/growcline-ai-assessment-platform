@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { clearAuth, getStoredUser } from "@/services/authService";
 import SidebarGuideCarousel from "@/components/assessment/SidebarGuideCarousel";
+import UserProfileDrawer from "@/components/assessment/UserProfileDrawer";
 
 interface NavItem {
   label: string;
@@ -50,6 +51,8 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState<{ fullName: string; email: string; role: string } | null>(null);
 
+  const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
+
   useEffect(() => {
     const stored = getStoredUser();
     if (stored) setUser(stored);
@@ -71,6 +74,12 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] flex">
+      {/* User Profile Slide-Over Drawer */}
+      <UserProfileDrawer
+        isOpen={profileDrawerOpen}
+        onClose={() => setProfileDrawerOpen(false)}
+      />
+
       {/* ── Sidebar ─────────────────────────────────────────────── */}
       {/* Mobile overlay */}
       {sidebarOpen && (
@@ -138,18 +147,24 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
 
         {/* User profile footer */}
         <div className="p-3 border-t border-white/10 shrink-0">
-          <div className="flex items-center gap-3 px-2 py-2">
-            <div className="w-8 h-8 rounded-full bg-[#4096ff]/20 border border-[#4096ff]/30 flex items-center justify-center shrink-0">
-              <span className="text-[#4096ff] text-xs font-bold">{initials}</span>
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-white text-[12.5px] font-semibold truncate">
-                {user?.fullName ?? "Candidate"}
-              </p>
-              <p className="text-[#64748B] text-[11px] truncate capitalize">
-                {user?.role ?? "candidate"}
-              </p>
-            </div>
+          <div className="flex items-center gap-3 px-2 py-2 group">
+            <button
+              onClick={() => setProfileDrawerOpen(true)}
+              className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-90 transition-opacity"
+              title="Open Profile"
+            >
+              <div className="w-8 h-8 rounded-full bg-[#4096ff]/20 border border-[#4096ff]/30 flex items-center justify-center shrink-0 group-hover:border-[#4096ff]">
+                <span className="text-[#4096ff] text-xs font-bold">{initials}</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-white text-[12.5px] font-semibold truncate group-hover:text-[#4096ff] transition-colors">
+                  {user?.fullName ?? "Candidate"}
+                </p>
+                <p className="text-[#64748B] text-[11px] truncate capitalize">
+                  {user?.role ?? "candidate"}
+                </p>
+              </div>
+            </button>
             <button
               onClick={handleLogout}
               title="Sign out"
@@ -187,14 +202,18 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
 
           {/* Right: user badge */}
           <div className="flex items-center gap-2 shrink-0">
-            <div className="hidden sm:flex items-center gap-2 pl-3 border-l border-[rgba(30,41,59,0.08)]">
+            <button
+              onClick={() => setProfileDrawerOpen(true)}
+              className="hidden sm:flex items-center gap-2 pl-3 border-l border-[rgba(30,41,59,0.08)] hover:opacity-80 transition-opacity"
+              title="Open Profile"
+            >
               <div className="w-7 h-7 rounded-full bg-[#4096ff]/10 border border-[#4096ff]/20 flex items-center justify-center">
                 <span className="text-[#4096ff] text-[11px] font-bold">{initials}</span>
               </div>
               <span className="text-[13px] font-medium text-[#1E293B] max-w-[120px] truncate">
                 {user?.fullName ?? "Candidate"}
               </span>
-            </div>
+            </button>
           </div>
         </header>
 
