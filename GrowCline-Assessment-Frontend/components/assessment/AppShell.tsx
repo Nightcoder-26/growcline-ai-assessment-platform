@@ -107,7 +107,7 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 py-4 px-3 space-y-0.5 overflow-y-auto">
+        <nav className="py-3 px-3 space-y-0.5 shrink-0">
           {NAV_ITEMS.map((item) => {
             const active = isActive(item);
             const Icon   = item.icon;
