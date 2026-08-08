@@ -21,6 +21,7 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { clearAuth, getStoredUser } from "@/services/authService";
+import SidebarGuideCarousel from "@/components/assessment/SidebarGuideCarousel";
 
 interface NavItem {
   label: string;
@@ -131,6 +132,9 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
             );
           })}
         </nav>
+
+        {/* Platform Info & Rules Carousel Widget */}
+        <SidebarGuideCarousel />
 
         {/* User profile footer */}
         <div className="p-3 border-t border-white/10 shrink-0">
