@@ -184,15 +184,11 @@ export function InterviewStudio() {
     return () => clearInterval(timer);
   }, [live]);
 
-  // ── Auto-activate proctoring when interview session is ready ───────────────
-  // Violations (face missing, tab switch, fullscreen exit) must be tracked
-  // throughout the entire interview, not only while recording is active.
-
-  useEffect(() => {
-    if (!interview?.id) return;
-    activateProctoring();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interview?.id]);
+  // ── Proctoring lifecycle ────────────────────────────────────────────────────
+  // Proctoring is activated ONLY when the user presses Record and deactivated
+  // ONLY when they press Stop Recording (or finish/retake).
+  // Do NOT auto-activate on session ready — violations before recording starts
+  // are irrelevant and must not be counted.
 
   // ── Start interview session on mount ──────────────────────────────────────
 
