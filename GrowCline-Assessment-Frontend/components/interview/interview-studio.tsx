@@ -5,21 +5,21 @@ import Webcam from "react-webcam";
 import { useReactMediaRecorder } from "react-media-recorder";
 import { useSearchParams, useRouter } from "next/navigation";
 
-import { StudioHeader } from "./studio-header";
-import { VideoStage } from "./video-stage";
-import { QuestionPanel } from "./question-panel";
+import { StudioHeader }      from "./studio-header";
+import { VideoStage }        from "./video-stage";
+import { QuestionPanel }     from "./question-panel";
 import { RecordingControls } from "./recording-controls";
-import { SessionMetrics } from "./session-metrics";
+import { SessionMetrics }    from "./session-metrics";
 
 // ── Live Proctoring embeds ─────────────────────────────────────────────────
 import { StatusPanel } from "@/components/live-proctoring/status-panel";
 import { AlertsPanel } from "@/components/live-proctoring/alerts-panel";
 
-import { useInterview } from "@/hooks/useInterview";
-import { useAuth } from "@/hooks/useAuth";
-import { useProctoring } from "@/hooks/useProctoring";
+import { useInterview }        from "@/hooks/useInterview";
+import { useAuth }             from "@/hooks/useAuth";
+import { useProctoring }       from "@/hooks/useProctoring";
 import { useInterviewSession } from "@/contexts/InterviewSessionContext";
-import apiClient from "@/lib/apiClient";
+import apiClient               from "@/lib/apiClient";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -32,17 +32,17 @@ function formatTime(seconds: number) {
 }
 
 // ---------------------------------------------------------------------------
-// Cheating Status shape (from GET /api/interview/cheating/{id})
+// Types
 // ---------------------------------------------------------------------------
 
 interface CheatingStatus {
-  riskScore: number;
-  multipleFaces: number;
-  tabSwitches: number;
-  faceMissing: number;
+  riskScore:            number;
+  multipleFaces:        number;
+  tabSwitches:          number;
+  faceMissing:          number;
   microphoneViolations: number;
-  fullscreenExits: number;
-  recommendation: string;
+  fullscreenExits:      number;
+  recommendation:       string;
 }
 
 // ---------------------------------------------------------------------------
@@ -54,14 +54,11 @@ export function InterviewStudio() {
   const router       = useRouter();
   const { userId }   = useAuth();
 
-  // ── Session context (single source of truth for Analytics page) ──────────
   const { updateSession, freezeSession } = useInterviewSession();
 
   const {
     interview,
     currentQuestion,
-    evaluation,
-    summary,
     loading,
     error: interviewError,
     startInterview,
@@ -70,8 +67,8 @@ export function InterviewStudio() {
     endInterview,
   } = useInterview();
 
-  // Read config from query params (or fall back to sensible defaults)
-  const jobRole      = searchParams?.get("jobRole")      ?? "Software Engineer";
+  // Query params
+  const jobRole       = searchParams?.get("jobRole")       ?? "Software Engineer";
   const interviewType =
     (searchParams?.get("interviewType") as "TECHNICAL" | "HR" | "BEHAVIORAL" | "RESUME_BASED") ??
     "TECHNICAL";
@@ -81,66 +78,100 @@ export function InterviewStudio() {
   // ── UI state ─────────────────────────────────────────────────────────────
 
   const webcamRef = useRef<Webcam | null>(null);
-  const [recording,     setRecording]     = useState(false);
-  const [paused,        setPaused]        = useState(false);
-  const [elapsed,       setElapsed]       = useState(0);
-  const [camOn,         setCamOn]         = useState(true);
-  const [micOn,         setMicOn]         = useState(true);
-  const [clock,         setClock]         = useState("--:--");
-  const [sessionStarted, setSessionStarted] = useState(false);
-  const [sessionEnded,   setSessionEnded]   = useState(false);
-  const [uploadStatus,  setUploadStatus]  = useState<"idle" | "uploading" | "done" | "error">("idle");
-  const [toastMsg,      setToastMsg]      = useState<string | null>(null);
-  const [candidateAnswerText, setCandidateAnswerText] = useState("");
 
-  // Track answered question IDs so we can show progress dots
-  const [answeredIds, setAnsweredIds] = useState<Set<string>>(new Set());
+  const [recording,             setRecording]             = useState(false);
+  const [paused,                setPaused]                = useState(false);
+  const [elapsed,               setElapsed]               = useState(0);
+  const [camOn,                 setCamOn]                 = useState(true);
+  const [micOn,                 setMicOn]                 = useState(true);
+  const [clock,                 setClock]                 = useState("--:--");
+  const [sessionStarted,        setSessionStarted]        = useState(false);
+  const [sessionEnded,          setSessionEnded]          = useState(false);
+  const [uploadStatus,          setUploadStatus]          = useState<"idle" | "uploading" | "done" | "error">("idle");
+  const [toastMsg,              setToastMsg]              = useState<string | null>(null);
+  const [candidateAnswerText,   setCandidateAnswerText]   = useState("");
+  const [answeredIds,           setAnsweredIds]           = useState<Set<string>>(new Set());
 
-  // ── Cheating status state (polled every 10 s once session starts) ────────
+  // Fullscreen UI state
+  const [fullscreenRequested,   setFullscreenRequested]   = useState(false);
+  const [fullscreenError,       setFullscreenError]       = useState<string | null>(null);
 
-  const [cheatingStatus, setCheatingStatus] = useState<CheatingStatus | null>(null);
+  // ── Cheating status (polled every 3 s) ───────────────────────────────────
+
+  const [cheatingStatus,  setCheatingStatus]  = useState<CheatingStatus | null>(null);
   const cheatingPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const fetchCheatingStatus = useCallback(async () => {
+    if (!interview?.id) return;
+    try {
+      const res  = await apiClient.get(`/api/interview/cheating/${interview.id}`);
+      const data = res.data?.data as CheatingStatus;
+      if (data) {
+        setCheatingStatus(data);
+        updateSession({
+          riskScore:            data.riskScore,
+          tabSwitches:          data.tabSwitches,
+          multipleFaces:        data.multipleFaces,
+          faceMissing:          data.faceMissing,
+          microphoneViolations: data.microphoneViolations,
+          fullscreenExits:      data.fullscreenExits,
+          recommendation:       data.recommendation,
+        });
+      }
+    } catch {
+      // Non-fatal
+    }
+  }, [interview?.id, updateSession]);
 
   // ── react-media-recorder ─────────────────────────────────────────────────
 
-  const { startRecording: startMediaRecorder, stopRecording: stopMediaRecorder, mediaBlobUrl, clearBlobUrl } =
-    useReactMediaRecorder({
-      video: camOn,
-      audio: micOn,
-    });
+  const {
+    startRecording: startMediaRecorder,
+    stopRecording:  stopMediaRecorder,
+    mediaBlobUrl,
+    clearBlobUrl,
+  } = useReactMediaRecorder({ video: camOn, audio: micOn });
 
   // ── Live Proctoring hook ───────────────────────────────────────────────────
+
   const {
-    status: proctoringStatus,
-    setStatus: setProctoringStatus,
-    alerts: proctoringAlerts,
-    logs:   proctoringLogs,
+    status:              proctoringStatus,
+    setStatus:           setProctoringStatus,
+    alerts:              proctoringAlerts,
+    logs:                proctoringLogs,
     logEvent,
-  } = useProctoring(interview?.id ?? null, userId ?? null);
+    activateProctoring,
+    deactivateProctoring,
+  } = useProctoring(interview?.id ?? null, userId ?? null, fetchCheatingStatus);
 
-  // Handle Face Presence / Away Warnings
-  const handleFacePresenceChange = useCallback((detected: boolean) => {
-    setProctoringStatus((prev) => ({ ...prev, faceDetected: detected }));
-    if (!detected) {
-      logEvent("NO_FACE");
-    }
-  }, [logEvent, setProctoringStatus]);
+  // ── Face detection callbacks ──────────────────────────────────────────────
 
-  // Handle Multiple Faces in Frame
+  /**
+   * Called by VideoStage when face presence changes.
+   * ALWAYS updates the status panel display.
+   * Violation event (NO_FACE) is only logged while recording (logEvent guards itself).
+   */
+  const handleFacePresenceChange = useCallback(
+    (detected: boolean) => {
+      setProctoringStatus((prev) => ({ ...prev, faceDetected: detected }));
+      if (!detected) {
+        logEvent("NO_FACE");
+      }
+    },
+    [logEvent, setProctoringStatus],
+  );
+
   const handleMultipleFacesDetected = useCallback(() => {
     logEvent("MULTIPLE_FACES");
   }, [logEvent]);
 
-  // ── Clock ──────────────────────────────────────────────────────────────────
+  // ── Clock ─────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const updateClock = () => {
-      setClock(
-        new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
-      );
-    };
-    updateClock();
-    const id = setInterval(updateClock, 1000);
+    const update = () =>
+      setClock(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }));
+    update();
+    const id = setInterval(update, 1_000);
     return () => clearInterval(id);
   }, []);
 
@@ -149,33 +180,43 @@ export function InterviewStudio() {
   const live = recording && !paused;
   useEffect(() => {
     if (!live) return;
-    const timer = setInterval(() => setElapsed((prev) => prev + 1), 1000);
+    const timer = setInterval(() => setElapsed((p) => p + 1), 1_000);
     return () => clearInterval(timer);
   }, [live]);
 
-  // ── Start session (fetches first AI question) ─────────────────────────────
+  // ── Auto-activate proctoring when interview session is ready ───────────────
+  // Violations (face missing, tab switch, fullscreen exit) must be tracked
+  // throughout the entire interview, not only while recording is active.
+
+  useEffect(() => {
+    if (!interview?.id) return;
+    activateProctoring();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [interview?.id]);
+
+  // ── Start interview session on mount ──────────────────────────────────────
 
   useEffect(() => {
     if (sessionStarted) return;
     setSessionStarted(true);
     startInterview({ jobRole, interviewType, difficulty, totalQuestions: 5 })
       .then(({ interview: sess }) => {
-        // Write initial session identity into context
         updateSession({
-          interviewId: sess.id,
-          sessionId:   sess.id,
+          interviewId:     sess.id,
+          sessionId:       sess.id,
           jobRole,
-          startTime:   sess.startedAt ?? new Date().toISOString(),
-          date:        new Date().toISOString().slice(0, 10),
+          startTime:       sess.startedAt ?? new Date().toISOString(),
+          date:            new Date().toISOString().slice(0, 10),
           recordingStatus: "idle",
-          status:      "active",
+          status:          "active",
         });
       })
       .catch((err) => showToast(`Could not start interview: ${err.message}`, true));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Mirror mic state into proctoring ──────────────────────────────────────
+  // ── Mirror mic → proctoring status ───────────────────────────────────────
+
   const prevMicOn = useRef(micOn);
   useEffect(() => {
     if (!interview?.id) return;
@@ -188,7 +229,8 @@ export function InterviewStudio() {
     prevMicOn.current = micOn;
   }, [micOn, interview?.id, logEvent, setProctoringStatus]);
 
-  // ── Mirror cam state into proctoring ──────────────────────────────────────
+  // ── Mirror cam → proctoring status ───────────────────────────────────────
+
   const prevCamOn = useRef(camOn);
   useEffect(() => {
     if (!interview?.id) return;
@@ -198,73 +240,79 @@ export function InterviewStudio() {
     prevCamOn.current = camOn;
   }, [camOn, interview?.id, logEvent]);
 
-  // ── Cheating status polling (every 10 s once interview is live) ───────────
+  // ── Poll cheating status ──────────────────────────────────────────────────
 
   useEffect(() => {
     if (!interview?.id) return;
-
-    const fetchCheatingStatus = async () => {
-      try {
-        const res = await apiClient.get(`/api/interview/cheating/${interview.id}`);
-        const data = res.data?.data as CheatingStatus;
-        if (data) {
-          setCheatingStatus(data);
-          // ── Push live cheating metrics into context (single source of truth)
-          updateSession({
-            riskScore:            data.riskScore,
-            tabSwitches:          data.tabSwitches,
-            multipleFaces:        data.multipleFaces,
-            faceMissing:          data.faceMissing,
-            microphoneViolations: data.microphoneViolations,
-            fullscreenExits:      data.fullscreenExits,
-            recommendation:       data.recommendation,
-          });
-        }
-      } catch {
-        // Non-fatal: cheating status poll failure does not disrupt interview
-      }
-    };
-
     fetchCheatingStatus();
-    cheatingPollRef.current = setInterval(fetchCheatingStatus, 10_000);
-
+    cheatingPollRef.current = setInterval(fetchCheatingStatus, 3_000);
     return () => {
       if (cheatingPollRef.current) clearInterval(cheatingPollRef.current);
     };
-  }, [interview?.id, updateSession]);
+  }, [interview?.id, fetchCheatingStatus]);
 
-  // ── Toast helper ──────────────────────────────────────────────────────────
+  // ── Toast ──────────────────────────────────────────────────────────────────
 
   const showToast = (msg: string, _isError = false) => {
     setToastMsg(msg);
-    setTimeout(() => setToastMsg(null), 4000);
+    setTimeout(() => setToastMsg(null), 4_000);
   };
 
-  // ── Recording controls ────────────────────────────────────────────────────
+  // ── Start Recording (user gesture — request fullscreen HERE) ──────────────
 
-  const handleStartRecording = useCallback(() => {
+  const handleStartRecording = useCallback(async () => {
+    setFullscreenError(null);
+
+    // 1. Request fullscreen from this user gesture
+    try {
+      if (document.documentElement.requestFullscreen) {
+        await document.documentElement.requestFullscreen();
+        setFullscreenRequested(true);
+        console.log("[STUDIO] fullscreen entered");
+      }
+    } catch (err) {
+      // Fullscreen failed — still allow recording but show warning
+      const msg = err instanceof Error ? err.message : "Fullscreen request failed";
+      console.warn("[STUDIO] fullscreen request failed:", msg);
+      setFullscreenError("Could not enter fullscreen. Recording continues without fullscreen lock.");
+    }
+
+    // 2. Start MediaRecorder
     setRecording(true);
     setPaused(false);
     setElapsed(0);
     setCandidateAnswerText("");
     clearBlobUrl();
     startMediaRecorder();
-  }, [clearBlobUrl, startMediaRecorder]);
+
+    // 3. Activate proctoring (enables logEvent to fire violations)
+    activateProctoring();
+
+    console.log("[STUDIO] recording started, proctoring activated");
+  }, [clearBlobUrl, startMediaRecorder, activateProctoring]);
+
+  // ── Stop Recording ────────────────────────────────────────────────────────
 
   const handleStopRecording = useCallback(() => {
+    // Deactivate FIRST so the fullscreen exit from cleanup is NOT counted as a violation
+    deactivateProctoring();
     setRecording(false);
     stopMediaRecorder();
-  }, [stopMediaRecorder]);
+    console.log("[STUDIO] recording stopped, proctoring deactivated");
+  }, [stopMediaRecorder, deactivateProctoring]);
+
+  // ── Retake ────────────────────────────────────────────────────────────────
 
   const handleRetake = useCallback(() => {
+    deactivateProctoring();
     setRecording(false);
     setPaused(false);
     setElapsed(0);
     setCandidateAnswerText("");
     clearBlobUrl();
-  }, [clearBlobUrl]);
+  }, [clearBlobUrl, deactivateProctoring]);
 
-  // ── Submit answer text + move to next question ────────────────────────────
+  // ── Submit answer + next question ─────────────────────────────────────────
 
   const handleSubmitAndNext = useCallback(async () => {
     if (!interview || !currentQuestion) return;
@@ -277,28 +325,35 @@ export function InterviewStudio() {
       if (eval_.interviewComplete) {
         showToast("Interview complete! Generating analytics report…");
 
+        // Deactivate proctoring BEFORE ending session (so fullscreen exit is not a violation)
+        deactivateProctoring();
+
         try {
           await apiClient.post(`/api/interview/end/${interview.id}`);
         } catch {
           await endInterview(interview.id);
         }
 
-        // ── Freeze the session so Analytics page reads exact final values ──
+        // Exit fullscreen gracefully
+        if (document.fullscreenElement) {
+          document.exitFullscreen().catch(() => {});
+        }
+
         updateSession({
           recordingStatus: "ended",
           duration: `${Math.max(1, Math.round(elapsed / 60))} Minutes`,
         });
         freezeSession();
-
         setSessionEnded(true);
 
         setTimeout(() => {
           router.push(`/interview-analytics?interviewId=${interview.id}`);
-        }, 1500);
+        }, 1_500);
         return;
       }
 
       await getNextQuestion(interview.id);
+      // Keep proctoring active between questions (only deactivate on stop/end)
       setRecording(false);
       setPaused(false);
       setElapsed(0);
@@ -308,60 +363,63 @@ export function InterviewStudio() {
       const msg = err instanceof Error ? err.message : "Failed to submit answer.";
       showToast(msg, true);
     }
-  }, [interview, currentQuestion, candidateAnswerText, submitAnswer, endInterview, getNextQuestion, clearBlobUrl, router, elapsed, updateSession, freezeSession]);
+  }, [
+    interview, currentQuestion, candidateAnswerText,
+    submitAnswer, endInterview, getNextQuestion,
+    clearBlobUrl, router, elapsed,
+    updateSession, freezeSession, deactivateProctoring,
+  ]);
 
-  // ── Upload video blob ─────────────────────────────────────────────────────
+  // ── Upload video ──────────────────────────────────────────────────────────
 
   const handleUpload = useCallback(async () => {
     if (!mediaBlobUrl || !interview) {
       showToast("Nothing to upload yet. Stop recording first.");
       return;
     }
-
     setUploadStatus("uploading");
     try {
       const blob = await fetch(mediaBlobUrl).then((r) => r.blob());
       const form = new FormData();
       form.append("interview_id", interview.id);
-      form.append("duration", String(elapsed));
-      form.append("video_file", blob, "recording.webm");
+      form.append("duration",     String(elapsed));
+      form.append("video_file",   blob, "recording.webm");
 
       await apiClient.post("/api/recordings/upload", form, {
         headers: { "Content-Type": "multipart/form-data" },
       });
-
       setUploadStatus("done");
       showToast("Recording uploaded successfully! ✅");
     } catch (err) {
       setUploadStatus("error");
-      const msg = err instanceof Error ? err.message : "Upload failed.";
-      showToast(msg, true);
+      showToast(err instanceof Error ? err.message : "Upload failed.", true);
     }
   }, [mediaBlobUrl, interview, elapsed]);
 
   // ── Derived values ────────────────────────────────────────────────────────
 
-  const { clarity, pace } = useMemo(() => {
-    if (!live) return { clarity: 0, pace: 0 };
-    return { clarity: 95, pace: 78 };
-  }, [live]);
+  const { clarity, pace } = useMemo(
+    () => (live ? { clarity: 95, pace: 78 } : { clarity: 0, pace: 0 }),
+    [live],
+  );
 
   const totalQuestions = interview?.totalQuestions ?? 5;
   const currentQNum    = interview?.currentQuestion ?? 1;
   const answeredArray  = Array.from({ length: totalQuestions }, (_, i) => {
     if (!currentQuestion) return false;
-    const qNum = currentQuestion.questionNumber;
-    return i + 1 < qNum || answeredIds.has(currentQuestion.id);
+    return i + 1 < currentQuestion.questionNumber || answeredIds.has(currentQuestion.id);
   });
 
-  // ── Risk colour helper for the cheating widget ────────────────────────────
+  const riskColor = (s: number) =>
+    s < 20 ? "text-emerald-400" : s < 50 ? "text-amber-400" : "text-rose-400";
+  const riskBg = (s: number) =>
+    s < 20
+      ? "bg-emerald-500/10 border-emerald-500/20"
+      : s < 50
+      ? "bg-amber-500/10 border-amber-500/20"
+      : "bg-rose-500/10 border-rose-500/20";
 
-  const riskColor = (score: number) =>
-    score < 20 ? "text-emerald-400" : score < 50 ? "text-amber-400" : "text-rose-400";
-  const riskBg = (score: number) =>
-    score < 20 ? "bg-emerald-500/10 border-emerald-500/20" : score < 50 ? "bg-amber-500/10 border-amber-500/20" : "bg-rose-500/10 border-rose-500/20";
-
-  // ── Render: Session ended (brief transition before redirect) ──────────────
+  // ── Render: session ended ─────────────────────────────────────────────────
 
   if (sessionEnded) {
     return (
@@ -369,9 +427,7 @@ export function InterviewStudio() {
         <div className="max-w-lg w-full rounded-[28px] border border-white/10 bg-[#1E293B] p-8 text-center space-y-4 shadow-2xl">
           <div className="text-5xl">🎉</div>
           <h2 className="text-2xl font-bold text-white">Interview Complete!</h2>
-          <p className="text-slate-400">
-            Your session has ended. Redirecting to your detailed Analytics Report...
-          </p>
+          <p className="text-slate-400">Redirecting to your Analytics Report…</p>
           <div className="flex justify-center mt-4">
             <div className="w-8 h-8 rounded-full border-4 border-[#4096ff] border-t-transparent animate-spin" />
           </div>
@@ -380,7 +436,7 @@ export function InterviewStudio() {
     );
   }
 
-  // ── Render: Loading initial question ──────────────────────────────────────
+  // ── Render: loading ───────────────────────────────────────────────────────
 
   if (loading && !currentQuestion) {
     return (
@@ -393,10 +449,11 @@ export function InterviewStudio() {
     );
   }
 
-  // ── Render: Main studio ───────────────────────────────────────────────────
+  // ── Render: main studio ───────────────────────────────────────────────────
 
   return (
     <main className="min-h-screen bg-[#F8FAFC]">
+
       {/* Toast */}
       {toastMsg && (
         <div className="fixed top-4 right-4 z-50 max-w-sm rounded-2xl bg-[#1E293B] border border-white/10 px-5 py-3 text-white shadow-xl text-sm">
@@ -404,7 +461,25 @@ export function InterviewStudio() {
         </div>
       )}
 
-      {/* Global error banner */}
+      {/* Fullscreen error banner */}
+      {fullscreenError && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-md rounded-2xl bg-amber-900/90 border border-amber-500/40 px-5 py-3 text-amber-100 shadow-xl text-sm flex items-center gap-3">
+          <span>⚠️ {fullscreenError}</span>
+          <button
+            className="ml-auto text-amber-300 hover:text-white underline text-xs whitespace-nowrap"
+            onClick={async () => {
+              try {
+                await document.documentElement.requestFullscreen();
+                setFullscreenError(null);
+              } catch {/* ignore */}
+            }}
+          >
+            Retry Fullscreen
+          </button>
+        </div>
+      )}
+
+      {/* Interview error banner */}
       {interviewError && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 max-w-md rounded-2xl bg-rose-900/90 border border-rose-500/40 px-5 py-3 text-rose-100 shadow-xl text-sm">
           ⚠️ {interviewError}
@@ -414,8 +489,9 @@ export function InterviewStudio() {
       <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8">
         <StudioHeader clock={clock} />
 
-        {/* ── Main grid: Camera + Question/Controls ─────────────────────── */}
+        {/* ── Main grid ── */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
+
           <VideoStage
             webcamRef={webcamRef}
             recording={recording}
@@ -473,7 +549,30 @@ export function InterviewStudio() {
           </div>
         </div>
 
-        {/* ── Live Proctoring Status Panel ──────────────────────────────── */}
+        {/* ── Fullscreen lock banner (shown when recording but not in fullscreen) ── */}
+        {recording && !proctoringStatus.fullscreen && (
+          <div className="rounded-2xl border border-amber-500/40 bg-amber-900/20 px-5 py-4 flex items-center gap-4">
+            <span className="text-amber-400 text-lg">⚠️</span>
+            <div className="flex-1">
+              <p className="text-amber-200 font-semibold text-sm">Fullscreen Required</p>
+              <p className="text-amber-300/70 text-xs mt-0.5">
+                Please return to fullscreen mode. Each exit is logged as a proctoring violation.
+              </p>
+            </div>
+            <button
+              className="rounded-xl bg-amber-500 px-4 py-2 text-sm font-bold text-white hover:bg-amber-400 transition"
+              onClick={async () => {
+                try {
+                  await document.documentElement.requestFullscreen();
+                } catch {/* ignore */}
+              }}
+            >
+              Return to Fullscreen
+            </button>
+          </div>
+        )}
+
+        {/* ── Live Proctoring panels ── */}
         {interview?.id && (
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
             <div>
@@ -503,7 +602,7 @@ export function InterviewStudio() {
           </div>
         )}
 
-        {/* ── Cheating Detection Widget ─────────────────────────────────── */}
+        {/* ── Risk Assessment Summary ── */}
         {interview?.id && (
           <div>
             <div className="mb-3 flex items-center gap-2">
@@ -520,13 +619,11 @@ export function InterviewStudio() {
                     <div>
                       <h3 className="text-xl font-bold text-white">Risk Assessment Summary</h3>
                       <p className="mt-1 text-sm text-slate-400">
-                        Real-time risk scoring engine — live updates from backend
+                        Real-time risk scoring — derived from MongoDB proctoring events
                       </p>
                     </div>
 
-                    <div
-                      className={`rounded-2xl border px-5 py-3 text-center ${riskBg(cheatingStatus.riskScore)}`}
-                    >
+                    <div className={`rounded-2xl border px-5 py-3 text-center ${riskBg(cheatingStatus.riskScore)}`}>
                       <p className={`text-3xl font-extrabold ${riskColor(cheatingStatus.riskScore)}`}>
                         {cheatingStatus.riskScore}
                       </p>
@@ -542,16 +639,9 @@ export function InterviewStudio() {
                       { label: "Mic Violations",   value: cheatingStatus.microphoneViolations, icon: "🎙️" },
                       { label: "Fullscreen Exits", value: cheatingStatus.fullscreenExits,      icon: "⛶" },
                     ].map(({ label, value, icon }) => (
-                      <div
-                        key={label}
-                        className="flex flex-col items-center rounded-2xl bg-[#0F172A] p-4"
-                      >
+                      <div key={label} className="flex flex-col items-center rounded-2xl bg-[#0F172A] p-4">
                         <span className="text-xl">{icon}</span>
-                        <span
-                          className={`mt-1 text-2xl font-bold ${
-                            value === 0 ? "text-emerald-400" : "text-rose-400"
-                          }`}
-                        >
+                        <span className={`mt-1 text-2xl font-bold ${value === 0 ? "text-emerald-400" : "text-rose-400"}`}>
                           {value}
                         </span>
                         <span className="mt-1 text-center text-xs text-slate-400 font-medium">{label}</span>
@@ -560,9 +650,7 @@ export function InterviewStudio() {
 
                     <div className="flex flex-col items-center justify-center rounded-2xl bg-[#0F172A] p-4">
                       <span className="text-xl">🛡️</span>
-                      <span
-                        className={`mt-1 text-center text-sm font-semibold ${riskColor(cheatingStatus.riskScore)}`}
-                      >
+                      <span className={`mt-1 text-center text-sm font-semibold ${riskColor(cheatingStatus.riskScore)}`}>
                         {cheatingStatus.recommendation}
                       </span>
                       <span className="mt-1 text-xs text-slate-400 font-medium">Verdict</span>

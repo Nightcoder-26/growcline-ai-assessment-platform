@@ -383,13 +383,22 @@ class TestCreateProctoringEvent:
         assert response.status_code == 403
         assert "permission" in response.json()["message"]
 
-    def test_completed_interview_rejected(self, client, auth_headers):
-        """Test 12: Cannot log events for a completed or cancelled interview."""
+    def test_completed_interview_accepted(self, client, auth_headers):
+        """Test 12: Proctoring events are accepted even for a completed interview.
+
+        Design decision: we do NOT block proctoring events based on COMPLETED status
+        because the final PROCTORING_STOPPED flush happens AFTER the interview is
+        marked complete. Blocking it would silently drop the closing lifecycle event.
+        Only CANCELLED interviews are rejected.
+        """
         global _current_mock_db
         completed_interview = _fake_interview(status="Completed")
         _current_mock_db.__getitem__.side_effect = lambda name: {
             "interviews": MagicMock(find_one=MagicMock(return_value=completed_interview)),
-            "proctoring_logs": MagicMock(),
+            "proctoring_logs": MagicMock(
+                find_one=MagicMock(return_value=None),
+                insert_one=MagicMock()
+            ),
         }[name]
 
         response = client.post(
@@ -401,8 +410,8 @@ class TestCreateProctoringEvent:
             }
         )
 
-        assert response.status_code == 400
-        assert "Cannot accept proctoring events" in response.json()["message"]
+        # Events accepted regardless of COMPLETED status
+        assert response.status_code == 201
 
     def test_client_cannot_inject_userid(self, client, auth_headers):
         """Test 13: Request schema does not accept userId as trusted ownership data."""
@@ -526,12 +535,16 @@ class TestCreateProctoringEvent:
         _current_mock_db["proctoring_logs"].insert_one.assert_not_called()
 
     def test_event_outside_cooldown_stored(self):
-        """Test 18: Different event types or event outside cooldown gets inserted."""
+        """Test 18: Event outside per-event-type cooldown window gets inserted as new document.
+
+        TAB_SWITCH has a 30-second cooldown. An event 35 seconds ago should be
+        treated as a fresh event and produce a new insertion.
+        """
         from app.services import proctoring_service
 
         global _current_mock_db
         old_log = _fake_proctoring_log(event_type="TAB_SWITCH")
-        old_log["timestamp"] = datetime.utcnow() - timedelta(seconds=5)
+        old_log["timestamp"] = datetime.utcnow() - timedelta(seconds=35)  # older than 30s cooldown
 
         mock_logs = MagicMock(
             find_one=MagicMock(return_value=old_log),
@@ -549,6 +562,7 @@ class TestCreateProctoringEvent:
 
         assert result["id"] != str(old_log["_id"])
         mock_logs.insert_one.assert_called_once()
+
 
     def test_different_event_types_not_deduplicated(self):
         """Test 19: Distinct event types logged within 2 seconds are not suppressed."""
@@ -659,12 +673,20 @@ class TestBatchIngestion:
         assert response.status_code == 400
         assert "exceeds the maximum" in response.json()["message"]
 
-    def test_batch_containing_invalid_event_fully_rejected(self, client, auth_headers):
-        """Test 24: Batch containing any invalid event is fully rejected before database write."""
+    def test_batch_with_invalid_event_skips_bad_stores_good(self, client, auth_headers):
+        """Test 24: Batch containing an invalid event skips the bad event and stores valid ones.
+
+        Design decision: changed from fail-all to skip-and-continue so that a single
+        bad event from an old browser version or race condition does NOT cause the entire
+        batch (including legitimate violations) to be silently discarded.
+        """
         global _current_mock_db
         _current_mock_db.__getitem__.side_effect = lambda name: {
             "interviews": MagicMock(find_one=MagicMock(return_value=_fake_interview())),
-            "proctoring_logs": MagicMock(insert_many=MagicMock()),
+            "proctoring_logs": MagicMock(
+                find_one=MagicMock(return_value=None),
+                insert_many=MagicMock()
+            ),
         }[name]
 
         response = client.post(
@@ -679,9 +701,13 @@ class TestBatchIngestion:
             }
         )
 
-        assert response.status_code == 400
-        assert "Unsupported event type" in response.json()["message"]
-        _current_mock_db["proctoring_logs"].insert_many.assert_not_called()
+        # Valid event is stored; invalid event is skipped with a warning
+        assert response.status_code == 201
+        # At least one event stored (the valid TAB_SWITCH; INVALID_EVENT_HACK is skipped)
+        data = response.json()
+        assert data["success"] is True
+        assert data["message"].startswith("Successfully ingested")
+
 
 
 # ===========================================================================

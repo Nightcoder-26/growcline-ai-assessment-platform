@@ -5,7 +5,8 @@ export type AlertSeverity =
   | "info";
 
 export interface AlertEvent {
-  id: number;
+  /** MongoDB document ObjectId string */
+  id: string;
   title: string;
   message: string;
   severity: AlertSeverity;
@@ -13,14 +14,16 @@ export interface AlertEvent {
 }
 
 export interface ActivityEvent {
-  id: number;
+  /** MongoDB document ObjectId string */
+  id: string;
   event: string;
   time: string;
   severity: AlertSeverity;
 }
 
 export interface TimelineEvent {
-  id: number;
+  /** MongoDB document ObjectId string */
+  id: string;
   title: string;
   subtitle: string;
   severity: AlertSeverity;

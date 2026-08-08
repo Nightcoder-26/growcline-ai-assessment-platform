@@ -39,16 +39,31 @@ class ProctoringLog:
             dict ready to pass to collection.insert_one().
         """
         now = datetime.utcnow()
-        # Map eventType to MongoDB collection schema enum
+        # Map frontend event type aliases to the canonical schema names stored in MongoDB.
+        # Only aliases that need renaming are listed here; canonical names pass through unchanged.
         event_map = {
-            "NO_FACE": "FACE_MISSING",
-            "CAMERA_DISABLED": "FACE_MISSING",
-            "FULLSCREEN_EXIT": "WINDOW_MINIMIZED",
-            "WINDOW_BLUR": "WINDOW_MINIMIZED",
-            "MICROPHONE_DISABLED": "BACKGROUND_VOICE",
+            "NO_FACE":        "FACE_MISSING",   # frontend sends NO_FACE, store as FACE_MISSING
+            "CAMERA_DISABLED": "FACE_MISSING",  # camera off = face missing
+            "WINDOW_BLUR":    "TAB_SWITCH",     # window blur is a weaker form of tab-switch
         }
         mapped_event_type = event_map.get(event_type, event_type)
-        if mapped_event_type not in ["FACE_MISSING", "MULTIPLE_FACES", "TAB_SWITCH", "WINDOW_MINIMIZED", "BACKGROUND_VOICE"]:
+
+        # Canonical event types stored in MongoDB
+        valid_types = [
+            "FACE_MISSING",
+            "MULTIPLE_FACES",
+            "TAB_SWITCH",
+            "FULLSCREEN_EXIT",
+            "WINDOW_MINIMIZED",
+            "BACKGROUND_VOICE",
+            "MICROPHONE_DISABLED",
+            "CAMERA_PERMISSION_DENIED",
+            "MICROPHONE_PERMISSION_DENIED",
+            "PROCTORING_STARTED",
+            "PROCTORING_STOPPED",
+        ]
+        if mapped_event_type not in valid_types:
+            # Unknown event type — default to TAB_SWITCH as a safe fallback
             mapped_event_type = "TAB_SWITCH"
 
         valid_severities = ["INFO", "LOW", "MEDIUM", "HIGH", "CRITICAL"]
