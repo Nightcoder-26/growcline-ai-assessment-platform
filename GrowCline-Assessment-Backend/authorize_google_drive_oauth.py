@@ -41,18 +41,24 @@ def generate_auth_url(client_id: str, redirect_uri: str) -> str:
     return f"{AUTH_URL}?{urllib.parse.urlencode(params)}"
 
 def exchange_code_for_tokens(client_id: str, client_secret: str, redirect_uri: str, code: str) -> dict:
+    clean_code = urllib.parse.unquote(code.strip())
     data = urllib.parse.urlencode({
-        "client_id": client_id,
-        "client_secret": client_secret,
-        "redirect_uri": redirect_uri,
-        "code": code,
+        "client_id": client_id.strip(),
+        "client_secret": client_secret.strip(),
+        "redirect_uri": redirect_uri.strip(),
+        "code": clean_code,
         "grant_type": "authorization_code",
     }).encode("utf-8")
 
     req = urllib.request.Request(TOKEN_URL, data=data, headers={"Content-Type": "application/x-www-form-urlencoded"})
-    with urllib.request.urlopen(req) as response:
-        res_data = json.loads(response.read().decode("utf-8"))
-        return res_data
+    try:
+        with urllib.request.urlopen(req) as response:
+            res_data = json.loads(response.read().decode("utf-8"))
+            return res_data
+    except urllib.error.HTTPError as exc:
+        err_body = exc.read().decode("utf-8")
+        logger.error(f"Google OAuth Token Exchange Error Body: {err_body}")
+        raise RuntimeError(f"HTTP {exc.code} {exc.reason}: {err_body}") from exc
 
 def save_token_file(client_id: str, client_secret: str, refresh_token: str, access_token: str = ""):
     token_json = {
@@ -100,6 +106,17 @@ def main():
     if not auth_code:
         print("ERROR: Authorization code cannot be empty.")
         sys.exit(1)
+
+    # Extract code if full URL was pasted
+    if "code=" in auth_code:
+        try:
+            parsed = urllib.parse.urlparse(auth_code)
+            params = urllib.parse.parse_qs(parsed.query)
+            if "code" in params:
+                auth_code = params["code"][0]
+                print(f"[OAUTH] Extracted code from URL: {auth_code[:15]}...")
+        except Exception:
+            pass
 
     print("\n[OAUTH] Exchanging code for refresh token...")
     try:
