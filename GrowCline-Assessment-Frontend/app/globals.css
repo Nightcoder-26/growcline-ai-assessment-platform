@@ -8,7 +8,7 @@
   --font-sans: var(--font-inter), 'Inter Fallback', system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), 'JetBrains Mono Fallback', monospace;
 
-  /* Brand Palette */
+  /* Strict Brand Palette */
   --color-primary: #4096ff;
   --color-primary-hover: #60a5fa;
   --color-accent: #4096ff;
@@ -23,16 +23,10 @@
   --color-sidebar-primary: var(--sidebar-primary);
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
-  --color-chart-5: var(--chart-5);
-  --color-chart-4: var(--chart-4);
-  --color-chart-3: var(--chart-3);
-  --color-chart-2: var(--chart-2);
-  --color-chart-1: var(--chart-1);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
-  --color-accent-foreground: var(--accent-foreground);
   --color-[#4096ff]: #4096ff;
   --color-[#60a5fa]: #60a5fa;
   --color-[#F8FAFC]: #F8FAFC;
@@ -53,8 +47,6 @@
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) * 1.4);
   --radius-2xl: calc(var(--radius) * 1.8);
-  --radius-3xl: calc(var(--radius) * 2.2);
-  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 :root {
@@ -79,7 +71,7 @@
   --border: rgba(255, 255, 255, 0.1);
   --input: rgba(255, 255, 255, 0.15);
   --ring: #4096ff;
-  --radius: 1rem;
+  --radius: 0.75rem;
 }
 
 @layer base {
@@ -97,40 +89,31 @@
   .glass-card {
     background-color: #1E293B;
     border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
   }
 
   .glass-light {
-    background: rgba(255, 255, 255, 0.85);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
     border: 1px solid rgba(30, 41, 59, 0.08);
-  }
-
-  /* Gradient border glow on hover */
-  .gradient-border-hover {
-    position: relative;
-    transition: box-shadow 0.2s ease;
-  }
-  .gradient-border-hover:hover {
-    box-shadow: 0 0 0 1.5px #4096ff, 0 4px 20px rgba(64, 150, 255, 0.12);
   }
 
   /* Card entrance animation */
   .animate-fade-in-up {
-    animation: fadeInUp 0.4s ease both;
+    animation: fadeInUp 0.3s ease both;
   }
 
   /* Staggered children */
   .animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
-  .animate-stagger > *:nth-child(2) { animation-delay: 60ms; }
-  .animate-stagger > *:nth-child(3) { animation-delay: 120ms; }
-  .animate-stagger > *:nth-child(4) { animation-delay: 180ms; }
-  .animate-stagger > *:nth-child(5) { animation-delay: 240ms; }
+  .animate-stagger > *:nth-child(2) { animation-delay: 40ms; }
+  .animate-stagger > *:nth-child(3) { animation-delay: 80ms; }
+  .animate-stagger > *:nth-child(4) { animation-delay: 120ms; }
+  .animate-stagger > *:nth-child(5) { animation-delay: 160ms; }
 
   /* Floating icon for empty states */
   .animate-float {
-    animation: float 3.5s ease-in-out infinite;
+    animation: float 4s ease-in-out infinite;
   }
 
   /* Shimmer skeleton */
@@ -149,30 +132,18 @@
     animation: pulseDot 1.8s ease-in-out infinite;
   }
 
-  /* Gradient text */
-  .text-gradient-blue {
-    background: linear-gradient(135deg, #4096ff 0%, #60a5fa 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
+  /* Brand accent border cards */
+  .card-accent-blue { border-left: 3px solid #4096ff !important; }
+  .card-accent-dark { border-left: 3px solid #1E293B !important; }
+
+  /* Stat card icon backgrounds */
+  .icon-bg-blue {
+    background: rgba(64, 150, 255, 0.1);
+    border: 1px solid rgba(64, 150, 255, 0.2);
   }
-
-  /* Left accent border cards */
-  .card-accent-blue  { border-left: 3px solid #4096ff !important; }
-  .card-accent-purple { border-left: 3px solid #a855f7 !important; }
-  .card-accent-emerald { border-left: 3px solid #10b981 !important; }
-  .card-accent-amber { border-left: 3px solid #f59e0b !important; }
-  .card-accent-rose  { border-left: 3px solid #f43f5e !important; }
-
-  /* Stat card gradient icon backgrounds */
-  .icon-bg-blue    { background: linear-gradient(135deg, rgba(64,150,255,0.15), rgba(64,150,255,0.05)); border: 1px solid rgba(64,150,255,0.2); }
-  .icon-bg-purple  { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(168,85,247,0.05)); border: 1px solid rgba(168,85,247,0.2); }
-  .icon-bg-emerald { background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05)); border: 1px solid rgba(16,185,129,0.2); }
-  .icon-bg-amber   { background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05)); border: 1px solid rgba(245,158,11,0.2); }
-
-  /* Nav active glow */
-  .nav-active-glow {
-    box-shadow: inset 3px 0 0 #4096ff, 0 2px 8px rgba(64,150,255,0.2);
+  .icon-bg-dark {
+    background: rgba(30, 41, 59, 0.06);
+    border: 1px solid rgba(30, 41, 59, 0.12);
   }
 }
 
@@ -185,7 +156,7 @@
   }
   50% {
     opacity: 0.45;
-    transform: scale(0.82);
+    transform: scale(0.85);
   }
 }
 .animate-recording-pulse {
@@ -195,7 +166,7 @@
 @keyframes fadeInUp {
   from {
     opacity: 0;
-    transform: translateY(14px);
+    transform: translateY(8px);
   }
   to {
     opacity: 1;
@@ -205,7 +176,7 @@
 
 @keyframes float {
   0%, 100% { transform: translateY(0px); }
-  50% { transform: translateY(-8px); }
+  50% { transform: translateY(-5px); }
 }
 
 @keyframes shimmer {
@@ -215,39 +186,5 @@
 
 @keyframes pulseDot {
   0%, 100% { transform: scale(1); opacity: 1; }
-  50% { transform: scale(1.4); opacity: 0.6; }
-}
-
-@keyframes scoreRing {
-  from { stroke-dashoffset: 1000; }
-}
-
-@keyframes slideInRight {
-  from {
-    opacity: 0;
-    transform: translateX(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(0);
-  }
-}
-
-@keyframes scaleIn {
-  from {
-    opacity: 0;
-    transform: scale(0.94);
-  }
-  to {
-    opacity: 1;
-    transform: scale(1);
-  }
-}
-
-.animate-slide-in-right {
-  animation: slideInRight 0.35s ease both;
-}
-
-.animate-scale-in {
-  animation: scaleIn 0.3s ease both;
+  50% { transform: scale(1.3); opacity: 0.6; }
 }

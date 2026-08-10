@@ -9,7 +9,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   Trophy, ChevronDown, ChevronUp, Clock, CheckCircle2,
-  XCircle, Minus, BarChart3, Star,
+  XCircle, Minus, BarChart3,
 } from "lucide-react";
 import AppShell from "@/components/assessment/AppShell";
 import { EmptyState, LoadingState, ErrorState, ScoreRing, ResultCard } from "@/components/assessment/shared";
@@ -62,9 +62,9 @@ export default function ResultsPage() {
   const passed    = results.filter((r) => (r.percentage ?? 0) >= 40).length;
 
   const summaryCards = [
-    { label: "Completed",     value: completed, accent: "card-accent-blue",    iconColor: "#4096ff",  iconBg: "icon-bg-blue",    icon: Trophy },
-    { label: "Average Score", value: `${avgPct}%`, accent: "card-accent-purple", iconColor: "#a855f7",  iconBg: "icon-bg-purple",  icon: BarChart3 },
-    { label: "Passed",        value: passed,    accent: "card-accent-emerald", iconColor: "#10b981",  iconBg: "icon-bg-emerald", icon: CheckCircle2 },
+    { label: "Completed",     value: completed,     icon: Trophy },
+    { label: "Average Score", value: `${avgPct}%`,  icon: BarChart3 },
+    { label: "Passed",        value: passed,        icon: CheckCircle2 },
   ];
 
   return (
@@ -77,10 +77,10 @@ export default function ResultsPage() {
             {summaryCards.map((card) => (
               <div
                 key={card.label}
-                className={`bg-white border border-[rgba(30,41,59,0.10)] rounded-xl px-4 py-4 flex items-center gap-3 hover:shadow-md transition-all duration-200 ${card.accent}`}
+                className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl px-4 py-4 flex items-center gap-3 hover:shadow-sm transition-all duration-200 card-accent-blue"
               >
-                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${card.iconBg}`}>
-                  <card.icon size={17} style={{ color: card.iconColor }} />
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 icon-bg-blue">
+                  <card.icon size={17} className="text-[#4096ff]" />
                 </div>
                 <div>
                   <p className="text-[11px] text-[#64748B] font-semibold uppercase tracking-wide mb-0.5">{card.label}</p>
@@ -109,13 +109,11 @@ export default function ResultsPage() {
               const pct     = Math.round(r.percentage ?? 0);
               const isOpen  = expanded === r.id;
               const isPassed = pct >= 40;
-              const borderColor = isPassed ? "#10b981" : "#f43f5e";
 
               return (
                 <div
                   key={r.id ?? idx}
-                  className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl overflow-hidden transition-all duration-200 hover:shadow-md"
-                  style={{ borderLeft: `3px solid ${borderColor}` }}
+                  className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl overflow-hidden transition-all duration-200 hover:shadow-sm card-accent-blue"
                 >
                   {/* Row header */}
                   <button
@@ -124,10 +122,7 @@ export default function ResultsPage() {
                   >
                     {/* Left: index + score ring */}
                     <div className="flex items-center gap-4">
-                      <div
-                        className="text-[11px] font-bold text-white w-7 h-7 rounded-full flex items-center justify-center shrink-0"
-                        style={{ background: `linear-gradient(135deg, ${borderColor}cc, ${borderColor}88)` }}
-                      >
+                      <div className="text-[11px] font-bold text-white w-7 h-7 rounded-full flex items-center justify-center shrink-0 bg-[#1E293B]">
                         {idx + 1}
                       </div>
                       <ScoreRing percentage={pct} size={52} />
@@ -154,13 +149,7 @@ export default function ResultsPage() {
                           <p className="text-[14px] font-extrabold text-[#1E293B]">{formatDuration(r.totalTime)}</p>
                         </div>
                       </div>
-                      <span
-                        className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold"
-                        style={isPassed
-                          ? { background: "rgba(16,185,129,0.1)", color: "#059669", border: "1px solid rgba(16,185,129,0.25)" }
-                          : { background: "rgba(244,63,94,0.1)", color: "#e11d48", border: "1px solid rgba(244,63,94,0.25)" }
-                        }
-                      >
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-bold bg-[#4096ff]/10 text-[#4096ff] border border-[#4096ff]/20">
                         {isPassed ? <CheckCircle2 size={11} /> : <XCircle size={11} />}
                         {r.status}
                       </span>
@@ -183,18 +172,17 @@ export default function ResultsPage() {
                           </div>
                         </div>
 
-                        {/* Question stats */}
+                        {/* Question summary */}
                         <div>
                           <p className="text-[10.5px] font-bold text-[#64748B] uppercase tracking-widest mb-3">Question Summary</p>
                           <div className="grid grid-cols-3 gap-3">
                             {[
-                              { icon: CheckCircle2, label: "Correct",    value: r.correctAnswers,    bg: "rgba(16,185,129,0.08)",  border: "rgba(16,185,129,0.2)",  color: "#059669" },
-                              { icon: XCircle,      label: "Wrong",      value: r.wrongAnswers,      bg: "rgba(244,63,94,0.08)",   border: "rgba(244,63,94,0.2)",   color: "#e11d48" },
-                              { icon: Minus,        label: "Unanswered", value: r.unansweredQuestions, bg: "rgba(100,116,139,0.08)", border: "rgba(100,116,139,0.2)", color: "#64748B" },
+                              { icon: CheckCircle2, label: "Correct",    value: r.correctAnswers },
+                              { icon: XCircle,      label: "Wrong",      value: r.wrongAnswers },
+                              { icon: Minus,        label: "Unanswered", value: r.unansweredQuestions },
                             ].map((stat) => (
-                              <div key={stat.label} className="rounded-xl p-3.5 flex items-center gap-3"
-                                style={{ background: stat.bg, border: `1px solid ${stat.border}` }}>
-                                <stat.icon size={16} style={{ color: stat.color }} />
+                              <div key={stat.label} className="rounded-xl p-3.5 flex items-center gap-3 bg-[#F1F5F9] border border-[rgba(30,41,59,0.08)]">
+                                <stat.icon size={16} className="text-[#4096ff]" />
                                 <div>
                                   <p className="text-[10px] text-[#64748B] font-semibold">{stat.label}</p>
                                   <p className="text-[18px] font-extrabold text-[#1E293B]">{stat.value ?? 0}</p>
@@ -208,19 +196,19 @@ export default function ResultsPage() {
                         {(r.strongestSkill || r.weakestSkill || r.recommendation) && (
                           <div className="grid sm:grid-cols-2 gap-3">
                             {r.strongestSkill && (
-                              <div className="rounded-xl px-4 py-3" style={{ background: "rgba(16,185,129,0.06)", border: "1px solid rgba(16,185,129,0.15)" }}>
-                                <p className="text-[10.5px] font-bold text-[#059669] uppercase tracking-widest mb-1">Strongest Skill</p>
+                              <div className="rounded-xl px-4 py-3 bg-[#4096ff]/10 border border-[#4096ff]/20">
+                                <p className="text-[10.5px] font-bold text-[#4096ff] uppercase tracking-widest mb-1">Strongest Skill</p>
                                 <p className="text-[13.5px] font-bold text-[#1E293B]">{r.strongestSkill}</p>
                               </div>
                             )}
                             {r.weakestSkill && (
-                              <div className="rounded-xl px-4 py-3" style={{ background: "rgba(244,63,94,0.06)", border: "1px solid rgba(244,63,94,0.15)" }}>
-                                <p className="text-[10.5px] font-bold text-[#e11d48] uppercase tracking-widest mb-1">Weakest Skill</p>
+                              <div className="rounded-xl px-4 py-3 bg-[#1E293B]/10 border border-[#1E293B]/20">
+                                <p className="text-[10.5px] font-bold text-[#1E293B] uppercase tracking-widest mb-1">Weakest Skill</p>
                                 <p className="text-[13.5px] font-bold text-[#1E293B]">{r.weakestSkill}</p>
                               </div>
                             )}
                             {r.recommendation && (
-                              <div className="sm:col-span-2 rounded-xl px-4 py-3" style={{ background: "rgba(64,150,255,0.06)", border: "1px solid rgba(64,150,255,0.15)" }}>
+                              <div className="sm:col-span-2 rounded-xl px-4 py-3 bg-[#4096ff]/10 border border-[#4096ff]/20">
                                 <p className="text-[10.5px] font-bold text-[#4096ff] uppercase tracking-widest mb-1">Recommendation</p>
                                 <p className="text-[13px] text-[#1E293B]">{r.recommendation}</p>
                               </div>

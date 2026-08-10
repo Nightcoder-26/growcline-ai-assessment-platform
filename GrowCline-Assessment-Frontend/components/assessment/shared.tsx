@@ -6,7 +6,7 @@
  * ProgressBar, ResultCard, EmptyState, LoadingState, ErrorState
  */
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import {
   Clock, CheckCircle2, XCircle, AlertCircle,
   RefreshCw, FileQuestion, BarChart3, ArrowRight,
@@ -37,12 +37,11 @@ export function AssessmentCard({
   onAction,
   disabled,
   accentColor = "#4096ff",
-  iconBg,
 }: AssessmentCardProps) {
   const statusConfig = {
     not_started: { label: "Not Started", color: "text-[#64748B]", bg: "bg-[#F1F5F9]" },
-    in_progress:  { label: "In Progress", color: "text-[#4096ff]", bg: "bg-[#EFF6FF]" },
-    completed:    { label: "Completed",   color: "text-[#059669]", bg: "bg-[#ECFDF5]" },
+    in_progress:  { label: "In Progress", color: "text-[#4096ff]", bg: "bg-[#4096ff]/10" },
+    completed:    { label: "Completed",   color: "text-[#1E293B]", bg: "bg-[#1E293B]/10" },
   }[status];
 
   const actionLabel = {
@@ -51,19 +50,15 @@ export function AssessmentCard({
     completed:   "View Results",
   }[status];
 
-  const defaultIconBg = iconBg ?? `linear-gradient(135deg, ${accentColor}20, ${accentColor}08)`;
-
   return (
     <div
-      className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl p-5 flex flex-col gap-4 transition-all duration-200 hover:shadow-lg group"
-      style={{ borderLeft: `3px solid ${accentColor}` }}
+      className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl p-5 flex flex-col gap-4 transition-all duration-200 hover:shadow-md group card-accent-blue"
     >
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
           <div
-            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110"
-            style={{ background: defaultIconBg, border: `1px solid ${accentColor}30`, color: accentColor }}
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 icon-bg-blue transition-transform duration-200 group-hover:scale-105"
           >
             {icon}
           </div>
@@ -101,8 +96,8 @@ export function AssessmentCard({
       <button
         onClick={onAction}
         disabled={disabled}
-        className="mt-auto w-full h-[38px] flex items-center justify-center gap-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-white text-[13px] font-bold transition-all duration-200 hover:opacity-90 hover:-translate-y-px active:translate-y-0"
-        style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`, boxShadow: `0 4px 12px ${accentColor}40` }}
+        className="mt-auto w-full h-[38px] flex items-center justify-center gap-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-white text-[13px] font-bold transition-all duration-200 bg-[#4096ff] hover:bg-[#60a5fa]"
+        style={{ boxShadow: "0 4px 12px rgba(64,150,255,0.3)" }}
       >
         {actionLabel}
         <ArrowRight size={13} />
@@ -134,8 +129,7 @@ export function QuestionCard({
     <div className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl p-6 shadow-sm">
       {/* Question header */}
       <div className="flex items-center justify-between mb-4">
-        <span className="text-[11.5px] font-bold text-[#4096ff] uppercase tracking-widest"
-          style={{ background: "rgba(64,150,255,0.08)", padding: "4px 10px", borderRadius: 8, border: "1px solid rgba(64,150,255,0.15)" }}>
+        <span className="text-[11.5px] font-bold text-[#4096ff] uppercase tracking-widest px-2.5 py-1 rounded-md border border-[#4096ff]/20 bg-[#4096ff]/10">
           Question {questionNumber} of {totalQuestions}
         </span>
       </div>
@@ -158,18 +152,16 @@ export function QuestionCard({
                 w-full flex items-center gap-3.5 px-4 py-3.5 rounded-xl border text-left
                 text-[13.5px] font-medium transition-all duration-150
                 ${selected
-                  ? "bg-[#EFF6FF] text-[#1E293B]"
+                  ? "bg-[#4096ff]/10 text-[#1E293B] border-[#4096ff]"
                   : "border-[rgba(30,41,59,0.10)] bg-white text-[#374151] hover:border-[#4096ff]/40 hover:bg-[#F8FAFC]"
                 }
               `}
-              style={selected ? { border: "1px solid #4096ff", boxShadow: "0 0 0 3px rgba(64,150,255,0.12)" } : {}}
             >
               <span
                 className={`
                   w-7 h-7 rounded-lg flex items-center justify-center text-[12px] font-bold shrink-0
-                  ${selected ? "text-white" : "bg-[#F1F5F9] text-[#64748B]"}
+                  ${selected ? "bg-[#4096ff] text-white" : "bg-[#F1F5F9] text-[#64748B]"}
                 `}
-                style={selected ? { background: "linear-gradient(135deg, #4096ff, #60a5fa)" } : {}}
               >
                 {letter}
               </span>
@@ -209,18 +201,12 @@ export function QuestionNavigator({ total, current, answered, onJump }: Question
               className={`
                 w-full aspect-square rounded-lg text-[12px] font-bold transition-all duration-150
                 ${isCurrent
-                  ? "text-white"
+                  ? "bg-[#4096ff] text-white shadow-sm"
                   : isAnswered
-                    ? "text-[#4096ff] border border-[#4096ff]/25"
+                    ? "bg-[#4096ff]/10 text-[#4096ff] border border-[#4096ff]/25"
                     : "bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]"
                 }
               `}
-              style={isCurrent
-                ? { background: "linear-gradient(135deg, #4096ff, #60a5fa)", boxShadow: "0 2px 8px rgba(64,150,255,0.4)" }
-                : isAnswered
-                  ? { background: "rgba(64,150,255,0.1)" }
-                  : {}
-              }
             >
               {i + 1}
             </button>
@@ -234,7 +220,7 @@ export function QuestionNavigator({ total, current, answered, onJump }: Question
           Current
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm border border-[#4096ff]/25" style={{ background: "rgba(64,150,255,0.1)" }} />
+          <span className="w-2.5 h-2.5 rounded-sm border border-[#4096ff]/25 bg-[#4096ff]/10" />
           Answered
         </span>
         <span className="flex items-center gap-1.5">
@@ -255,7 +241,6 @@ interface AssessmentTimerProps {
 
 export function AssessmentTimer({ durationSeconds, onExpire }: AssessmentTimerProps) {
   const [remaining, setRemaining] = useState(durationSeconds);
-  const isWarning = remaining <= 300; // 5 min warning
   const isDanger  = remaining <= 60;  // 1 min danger
 
   useEffect(() => {
@@ -280,18 +265,10 @@ export function AssessmentTimer({ durationSeconds, onExpire }: AssessmentTimerPr
       className={`
         flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13.5px] font-mono font-bold
         ${isDanger
-          ? "text-[#DC2626] animate-pulse"
-          : isWarning
-            ? "text-[#C2410C]"
-            : "text-[#1E293B]"
+          ? "bg-[#1E293B]/10 text-[#1E293B] border border-[#1E293B]/20 animate-pulse"
+          : "bg-[#F1F5F9] text-[#1E293B] border border-[rgba(30,41,59,0.10)]"
         }
       `}
-      style={isDanger
-        ? { background: "rgba(254,226,226,0.9)", border: "1px solid rgba(254,202,202,0.8)" }
-        : isWarning
-          ? { background: "rgba(255,247,237,0.9)", border: "1px solid rgba(253,186,116,0.5)" }
-          : { background: "rgba(241,245,249,0.9)", border: "1px solid rgba(30,41,59,0.10)" }
-      }
     >
       <Clock size={14} className={isDanger ? "animate-pulse" : ""} />
       {mins}:{secs}
@@ -313,8 +290,8 @@ export function ProgressBar({ current, total, answered }: ProgressBarProps) {
     <div className="flex items-center gap-3">
       <div className="flex-1 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
         <div
-          className="h-full rounded-full transition-all duration-500"
-          style={{ width: `${pct}%`, background: "linear-gradient(90deg, #4096ff, #60a5fa)" }}
+          className="h-full rounded-full transition-all duration-300 bg-[#4096ff]"
+          style={{ width: `${pct}%` }}
         />
       </div>
       <span className="text-[12px] font-bold text-[#64748B] shrink-0 min-w-[52px] text-right">
@@ -339,11 +316,10 @@ export function ResultCard({ label, value, sub, accent }: ResultCardProps) {
       className={`
         rounded-xl p-4 border transition-all duration-200
         ${accent
-          ? "text-white"
+          ? "bg-[#4096ff] border-[#4096ff] text-white"
           : "bg-white border-[rgba(30,41,59,0.10)] text-[#1E293B] hover:shadow-sm"
         }
       `}
-      style={accent ? { background: "linear-gradient(135deg, #4096ff 0%, #60a5fa 100%)", border: "none", boxShadow: "0 4px 16px rgba(64,150,255,0.35)" } : {}}
     >
       <p className={`text-[11px] font-bold uppercase tracking-widest mb-1 ${accent ? "text-white/70" : "text-[#64748B]"}`}>
         {label}
@@ -370,7 +346,7 @@ interface EmptyStateProps {
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-      <div className="w-16 h-16 rounded-2xl bg-[#F1F5F9] border border-[rgba(30,41,59,0.08)] flex items-center justify-center mb-5 text-[#CBD5E1] animate-float">
+      <div className="w-16 h-16 rounded-2xl bg-[#F1F5F9] border border-[rgba(30,41,59,0.08)] flex items-center justify-center mb-5 text-[#94A3B8] animate-float">
         {icon ?? <BarChart3 size={28} />}
       </div>
       <h3 className="text-[15px] font-bold text-[#1E293B] mb-2">{title}</h3>
@@ -380,8 +356,8 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
       {action && (
         <button
           onClick={action.onClick}
-          className="mt-6 px-6 py-2.5 rounded-xl text-white text-[13px] font-bold transition-all hover:opacity-90 hover:-translate-y-px"
-          style={{ background: "linear-gradient(135deg, #4096ff, #60a5fa)", boxShadow: "0 4px 14px rgba(64,150,255,0.35)" }}
+          className="mt-6 px-6 py-2.5 rounded-xl text-white text-[13px] font-bold transition-all bg-[#4096ff] hover:bg-[#60a5fa]"
+          style={{ boxShadow: "0 4px 14px rgba(64,150,255,0.35)" }}
         >
           {action.label}
         </button>
@@ -395,11 +371,9 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
 export function LoadingState({ message = "Loading…" }: { message?: string }) {
   return (
     <div className="flex flex-col items-center justify-center py-20 gap-5">
-      {/* Branded spinner — nested rings */}
       <div className="relative w-10 h-10">
         <div className="absolute inset-0 rounded-full border-[3px] border-[#4096ff]/20" />
         <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-[#4096ff] animate-spin" />
-        <div className="absolute inset-1.5 rounded-full border-[2px] border-transparent border-t-[#60a5fa]/60 animate-spin" style={{ animationDirection: "reverse", animationDuration: "0.6s" }} />
       </div>
       <p className="text-[13px] text-[#64748B] font-medium">{message}</p>
     </div>
@@ -416,9 +390,8 @@ interface ErrorStateProps {
 export function ErrorState({ message = "Something went wrong.", onRetry }: ErrorStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-4">
-      <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-        style={{ background: "rgba(254,226,226,0.8)", border: "1px solid rgba(254,202,202,0.8)" }}>
-        <AlertCircle size={24} className="text-[#DC2626]" />
+      <div className="w-14 h-14 rounded-2xl flex items-center justify-center bg-[#1E293B]/10 border border-[#1E293B]/20">
+        <AlertCircle size={24} className="text-[#1E293B]" />
       </div>
       <div className="text-center">
         <p className="text-[14px] font-bold text-[#1E293B] mb-1">Unable to load</p>
@@ -437,7 +410,7 @@ export function ErrorState({ message = "Something went wrong.", onRetry }: Error
   );
 }
 
-// ─── ScoreRing (animated score circle) ────────────────────────────────────────
+// ─── ScoreRing (brand blue score circle) ────────────────────────────────────────
 
 interface ScoreRingProps {
   percentage: number;
@@ -450,8 +423,7 @@ export function ScoreRing({ percentage, size = 80 }: ScoreRingProps) {
   const circ = 2 * Math.PI * r;
   const offset = circ - (percentage / 100) * circ;
 
-  // Color based on score
-  const color = percentage >= 70 ? "#10b981" : percentage >= 40 ? "#4096ff" : "#f43f5e";
+  const color = "#4096ff";
 
   useEffect(() => {
     const t = setTimeout(() => setAnimated(true), 100);
@@ -471,10 +443,9 @@ export function ScoreRing({ percentage, size = 80 }: ScoreRingProps) {
           style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)" }}
         />
       </svg>
-      <span className="absolute text-[12px] font-extrabold" style={{ color }}>{Math.round(percentage)}%</span>
+      <span className="absolute text-[12px] font-extrabold text-[#1E293B]">{Math.round(percentage)}%</span>
     </div>
   );
 }
 
-// Re-export CheckCircle2, XCircle for use in pages
 export { CheckCircle2, XCircle };
