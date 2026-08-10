@@ -8,7 +8,7 @@
   --font-sans: var(--font-inter), 'Inter Fallback', system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), 'JetBrains Mono Fallback', monospace;
 
-  /* Explicit User-Requested Brand Palette */
+  /* Brand Palette */
   --color-primary: #4096ff;
   --color-primary-hover: #60a5fa;
   --color-accent: #4096ff;
@@ -99,7 +99,84 @@
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
   }
+
+  .glass-light {
+    background: rgba(255, 255, 255, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(30, 41, 59, 0.08);
+  }
+
+  /* Gradient border glow on hover */
+  .gradient-border-hover {
+    position: relative;
+    transition: box-shadow 0.2s ease;
+  }
+  .gradient-border-hover:hover {
+    box-shadow: 0 0 0 1.5px #4096ff, 0 4px 20px rgba(64, 150, 255, 0.12);
+  }
+
+  /* Card entrance animation */
+  .animate-fade-in-up {
+    animation: fadeInUp 0.4s ease both;
+  }
+
+  /* Staggered children */
+  .animate-stagger > *:nth-child(1) { animation-delay: 0ms; }
+  .animate-stagger > *:nth-child(2) { animation-delay: 60ms; }
+  .animate-stagger > *:nth-child(3) { animation-delay: 120ms; }
+  .animate-stagger > *:nth-child(4) { animation-delay: 180ms; }
+  .animate-stagger > *:nth-child(5) { animation-delay: 240ms; }
+
+  /* Floating icon for empty states */
+  .animate-float {
+    animation: float 3.5s ease-in-out infinite;
+  }
+
+  /* Shimmer skeleton */
+  .animate-shimmer {
+    background: linear-gradient(90deg,
+      rgba(241, 245, 249, 0) 0%,
+      rgba(241, 245, 249, 0.8) 50%,
+      rgba(241, 245, 249, 0) 100%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.6s infinite;
+  }
+
+  /* Accent dot pulse */
+  .animate-pulse-dot {
+    animation: pulseDot 1.8s ease-in-out infinite;
+  }
+
+  /* Gradient text */
+  .text-gradient-blue {
+    background: linear-gradient(135deg, #4096ff 0%, #60a5fa 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* Left accent border cards */
+  .card-accent-blue  { border-left: 3px solid #4096ff !important; }
+  .card-accent-purple { border-left: 3px solid #a855f7 !important; }
+  .card-accent-emerald { border-left: 3px solid #10b981 !important; }
+  .card-accent-amber { border-left: 3px solid #f59e0b !important; }
+  .card-accent-rose  { border-left: 3px solid #f43f5e !important; }
+
+  /* Stat card gradient icon backgrounds */
+  .icon-bg-blue    { background: linear-gradient(135deg, rgba(64,150,255,0.15), rgba(64,150,255,0.05)); border: 1px solid rgba(64,150,255,0.2); }
+  .icon-bg-purple  { background: linear-gradient(135deg, rgba(168,85,247,0.15), rgba(168,85,247,0.05)); border: 1px solid rgba(168,85,247,0.2); }
+  .icon-bg-emerald { background: linear-gradient(135deg, rgba(16,185,129,0.15), rgba(16,185,129,0.05)); border: 1px solid rgba(16,185,129,0.2); }
+  .icon-bg-amber   { background: linear-gradient(135deg, rgba(245,158,11,0.15), rgba(245,158,11,0.05)); border: 1px solid rgba(245,158,11,0.2); }
+
+  /* Nav active glow */
+  .nav-active-glow {
+    box-shadow: inset 3px 0 0 #4096ff, 0 2px 8px rgba(64,150,255,0.2);
+  }
 }
+
+/* ─── Keyframes ─────────────────────────────────────────────────────────────── */
 
 @keyframes recording-pulse {
   0%, 100% {
@@ -113,4 +190,64 @@
 }
 .animate-recording-pulse {
   animation: recording-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0px); }
+  50% { transform: translateY(-8px); }
+}
+
+@keyframes shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pulseDot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+}
+
+@keyframes scoreRing {
+  from { stroke-dashoffset: 1000; }
+}
+
+@keyframes slideInRight {
+  from {
+    opacity: 0;
+    transform: translateX(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slideInRight 0.35s ease both;
+}
+
+.animate-scale-in {
+  animation: scaleIn 0.3s ease both;
 }

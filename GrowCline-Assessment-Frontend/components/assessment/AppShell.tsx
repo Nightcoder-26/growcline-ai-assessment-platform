@@ -19,6 +19,7 @@ import {
   X,
   LogOut,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { clearAuth, getStoredUser } from "@/services/authService";
 import SidebarGuideCarousel from "@/components/assessment/SidebarGuideCarousel";
@@ -32,11 +33,11 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { label: "Home",        href: "/dashboard",   icon: LayoutDashboard, exact: true },
-  { label: "Assessments", href: "/assessments", icon: ClipboardList },
+  { label: "Home",        href: "/dashboard",       icon: LayoutDashboard, exact: true },
+  { label: "Assessments", href: "/assessments",     icon: ClipboardList },
   { label: "Interview",   href: "/video-recording", icon: Video, exact: true },
-  { label: "Results",     href: "/results",     icon: Trophy, exact: true },
-  { label: "Analytics",   href: "/analytics",   icon: BarChart2, exact: true },
+  { label: "Results",     href: "/results",         icon: Trophy, exact: true },
+  { label: "Analytics",   href: "/analytics",       icon: BarChart2, exact: true },
 ];
 
 interface AppShellProps {
@@ -50,12 +51,13 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
   const router     = useRouter();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [user, setUser] = useState<{ fullName: string; email: string; role: string } | null>(null);
-
   const [profileDrawerOpen, setProfileDrawerOpen] = useState(false);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const stored = getStoredUser();
     if (stored) setUser(stored);
+    setMounted(true);
   }, []);
 
   function isActive(item: NavItem) {
@@ -84,39 +86,58 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
-          className="fixed inset-0 bg-[#0F172A]/40 z-30 lg:hidden"
+          className="fixed inset-0 bg-[#0F172A]/50 z-30 lg:hidden backdrop-blur-sm"
           onClick={() => setSidebarOpen(false)}
         />
       )}
 
       <aside
         className={`
-          fixed top-0 left-0 h-full w-60 bg-[#1E293B] z-40 flex flex-col
-          transform transition-transform duration-200 ease-in-out
+          fixed top-0 left-0 h-full w-64 z-40 flex flex-col
+          transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
           lg:translate-x-0 lg:static lg:z-auto
         `}
+        style={{
+          background: "linear-gradient(180deg, #0F172A 0%, #1E293B 100%)",
+          borderRight: "1px solid rgba(255,255,255,0.06)",
+        }}
       >
         {/* Logo */}
-        <div className="flex items-center justify-between h-16 px-5 border-b border-white/10 shrink-0">
-          <Link href="/dashboard" className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-[#4096ff] flex items-center justify-center">
-              <span className="text-white text-xs font-bold">A</span>
+        <div className="flex items-center justify-between h-16 px-5 shrink-0"
+          style={{ borderBottom: "1px solid rgba(255,255,255,0.06)" }}
+        >
+          <Link href="/dashboard" className="flex items-center gap-2.5 group">
+            {/* Gradient G mark */}
+            <div
+              className="w-8 h-8 rounded-xl flex items-center justify-center shadow-[0_4px_12px_rgba(64,150,255,0.4)] transition-transform duration-200 group-hover:scale-105"
+              style={{ background: "linear-gradient(135deg, #4096ff 0%, #818cf8 100%)" }}
+            >
+              <Sparkles size={14} className="text-white" />
             </div>
-            <span className="text-white font-semibold text-[15px] tracking-[-0.01em]">
-              AssessAI
-            </span>
+            <div>
+              <span className="text-white font-bold text-[15px] tracking-[-0.02em]">
+                Grow<span style={{ color: "#60a5fa" }}>Cline</span>
+              </span>
+            </div>
           </Link>
           <button
-            className="lg:hidden text-white/60 hover:text-white transition-colors"
+            className="lg:hidden text-white/50 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"
             onClick={() => setSidebarOpen(false)}
           >
-            <X size={18} />
+            <X size={17} />
           </button>
         </div>
 
+        {/* Navigation label */}
+        <div className="px-5 pt-4 pb-1 shrink-0">
+          <span className="text-[10px] font-bold text-white/25 uppercase tracking-[0.12em]">
+            Navigation
+          </span>
+        </div>
+
         {/* Navigation */}
-        <nav className="py-3 px-3 space-y-0.5 shrink-0">
+        <nav className="py-1 px-3 space-y-0.5 shrink-0">
           {NAV_ITEMS.map((item) => {
             const active = isActive(item);
             const Icon   = item.icon;
@@ -126,17 +147,27 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
                 className={`
-                  flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13.5px] font-medium
-                  transition-all duration-150 group
+                  flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium
+                  transition-all duration-150 group relative
                   ${active
-                    ? "bg-[#4096ff] text-white shadow-[0_2px_8px_rgba(64,150,255,0.35)]"
-                    : "text-[#94A3B8] hover:bg-white/8 hover:text-white"
+                    ? "text-white"
+                    : "text-[#64748B] hover:text-[#94A3B8] hover:bg-white/5"
                   }
                 `}
+                style={active ? {
+                  background: "linear-gradient(135deg, rgba(64,150,255,0.25) 0%, rgba(64,150,255,0.08) 100%)",
+                  borderLeft: "2px solid #4096ff",
+                  boxShadow: "0 2px 8px rgba(64,150,255,0.15)",
+                } : { borderLeft: "2px solid transparent" }}
               >
-                <Icon size={16} className="shrink-0" />
+                <Icon
+                  size={15}
+                  className={`shrink-0 transition-colors ${active ? "text-[#4096ff]" : "text-[#475569] group-hover:text-[#64748B]"}`}
+                />
                 <span className="flex-1">{item.label}</span>
-                {active && <ChevronRight size={13} className="shrink-0 opacity-60" />}
+                {active && (
+                  <ChevronRight size={12} className="shrink-0 text-[#4096ff]/60" />
+                )}
               </Link>
             );
           })}
@@ -146,21 +177,29 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
         <SidebarGuideCarousel />
 
         {/* User profile footer */}
-        <div className="p-3 border-t border-white/10 shrink-0">
+        <div className="p-3 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="flex items-center gap-3 px-2 py-2 group">
             <button
               onClick={() => setProfileDrawerOpen(true)}
               className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-90 transition-opacity"
               title="Open Profile"
             >
-              <div className="w-8 h-8 rounded-full bg-[#4096ff]/20 border border-[#4096ff]/30 flex items-center justify-center shrink-0 group-hover:border-[#4096ff]">
-                <span className="text-[#4096ff] text-xs font-bold">{initials}</span>
+              {/* Avatar with gradient ring */}
+              <div className="relative shrink-0">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-all duration-200 group-hover:ring-2 group-hover:ring-[#4096ff]/50"
+                  style={{ background: "linear-gradient(135deg, rgba(64,150,255,0.3), rgba(129,140,248,0.3))", border: "1px solid rgba(64,150,255,0.35)" }}
+                >
+                  <span className="text-[#93C5FD] text-xs font-bold">{initials}</span>
+                </div>
+                {/* Online indicator */}
+                <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#10b981] border-2 border-[#0F172A]" />
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-white text-[12.5px] font-semibold truncate group-hover:text-[#4096ff] transition-colors">
+                <p className="text-white text-[12.5px] font-semibold truncate group-hover:text-[#93C5FD] transition-colors">
                   {user?.fullName ?? "Candidate"}
                 </p>
-                <p className="text-[#64748B] text-[11px] truncate capitalize">
+                <p className="text-[#475569] text-[11px] truncate capitalize">
                   {user?.role ?? "candidate"}
                 </p>
               </div>
@@ -168,9 +207,9 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
             <button
               onClick={handleLogout}
               title="Sign out"
-              className="text-[#64748B] hover:text-white transition-colors shrink-0"
+              className="text-[#475569] hover:text-white transition-colors shrink-0 p-1.5 rounded-lg hover:bg-white/10"
             >
-              <LogOut size={15} />
+              <LogOut size={14} />
             </button>
           </div>
         </div>
@@ -179,38 +218,44 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
       {/* ── Main content ─────────────────────────────────────────── */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top header */}
-        <header className="h-16 bg-white border-b border-[rgba(30,41,59,0.08)] flex items-center px-5 gap-4 shrink-0 sticky top-0 z-20">
+        <header className="h-16 bg-white/95 backdrop-blur-md flex items-center px-5 gap-4 shrink-0 sticky top-0 z-20"
+          style={{ borderBottom: "1px solid rgba(30,41,59,0.07)", boxShadow: "0 1px 0 rgba(30,41,59,0.04), 0 4px 16px rgba(30,41,59,0.03)" }}
+        >
           {/* Mobile hamburger */}
           <button
-            className="lg:hidden text-[#64748B] hover:text-[#1E293B] transition-colors"
+            className="lg:hidden text-[#64748B] hover:text-[#1E293B] transition-colors p-1.5 rounded-lg hover:bg-[#F1F5F9]"
             onClick={() => setSidebarOpen(true)}
           >
-            <Menu size={20} />
+            <Menu size={19} />
           </button>
 
           {/* Page title */}
           <div className="flex-1 min-w-0">
             {title && (
-              <h1 className="text-[15px] font-semibold text-[#1E293B] truncate leading-tight">
+              <h1 className="text-[15px] font-bold text-[#1E293B] truncate leading-tight">
                 {title}
               </h1>
             )}
             {subtitle && (
-              <p className="text-[12px] text-[#64748B] truncate">{subtitle}</p>
+              <p className="text-[11.5px] text-[#94A3B8] truncate">{subtitle}</p>
             )}
           </div>
 
-          {/* Right: user badge */}
+          {/* Right: badge */}
           <div className="flex items-center gap-2 shrink-0">
             <button
               onClick={() => setProfileDrawerOpen(true)}
-              className="hidden sm:flex items-center gap-2 pl-3 border-l border-[rgba(30,41,59,0.08)] hover:opacity-80 transition-opacity"
+              className="hidden sm:flex items-center gap-2 pl-3 ml-1 hover:opacity-80 transition-opacity"
+              style={{ borderLeft: "1px solid rgba(30,41,59,0.08)" }}
               title="Open Profile"
             >
-              <div className="w-7 h-7 rounded-full bg-[#4096ff]/10 border border-[#4096ff]/20 flex items-center justify-center">
+              <div
+                className="w-7 h-7 rounded-full flex items-center justify-center"
+                style={{ background: "linear-gradient(135deg, rgba(64,150,255,0.15), rgba(129,140,248,0.15))", border: "1px solid rgba(64,150,255,0.25)" }}
+              >
                 <span className="text-[#4096ff] text-[11px] font-bold">{initials}</span>
               </div>
-              <span className="text-[13px] font-medium text-[#1E293B] max-w-[120px] truncate">
+              <span className="text-[13px] font-semibold text-[#1E293B] max-w-[120px] truncate">
                 {user?.fullName ?? "Candidate"}
               </span>
             </button>
@@ -218,7 +263,7 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
         </header>
 
         {/* Page content */}
-        <main className="flex-1 p-5 lg:p-7 overflow-auto">
+        <main className={`flex-1 p-5 lg:p-7 overflow-auto ${mounted ? "animate-fade-in-up" : ""}`}>
           {children}
         </main>
       </div>

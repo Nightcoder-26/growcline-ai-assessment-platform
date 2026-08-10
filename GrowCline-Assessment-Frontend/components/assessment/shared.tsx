@@ -23,6 +23,8 @@ interface AssessmentCardProps {
   duration?: number;
   onAction: () => void;
   disabled?: boolean;
+  accentColor?: string;
+  iconBg?: string;
 }
 
 export function AssessmentCard({
@@ -34,11 +36,13 @@ export function AssessmentCard({
   duration,
   onAction,
   disabled,
+  accentColor = "#4096ff",
+  iconBg,
 }: AssessmentCardProps) {
   const statusConfig = {
     not_started: { label: "Not Started", color: "text-[#64748B]", bg: "bg-[#F1F5F9]" },
     in_progress:  { label: "In Progress", color: "text-[#4096ff]", bg: "bg-[#EFF6FF]" },
-    completed:    { label: "Completed",   color: "text-[#0F172A]", bg: "bg-[#F0FDF4]" },
+    completed:    { label: "Completed",   color: "text-[#059669]", bg: "bg-[#ECFDF5]" },
   }[status];
 
   const actionLabel = {
@@ -47,17 +51,25 @@ export function AssessmentCard({
     completed:   "View Results",
   }[status];
 
+  const defaultIconBg = iconBg ?? `linear-gradient(135deg, ${accentColor}20, ${accentColor}08)`;
+
   return (
-    <div className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl p-5 flex flex-col gap-4 hover:border-[#4096ff]/30 hover:shadow-[0_4px_20px_rgba(64,150,255,0.08)] transition-all duration-200">
+    <div
+      className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl p-5 flex flex-col gap-4 transition-all duration-200 hover:shadow-lg group"
+      style={{ borderLeft: `3px solid ${accentColor}` }}
+    >
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[#4096ff]/08 border border-[#4096ff]/15 flex items-center justify-center text-[#4096ff] shrink-0">
+          <div
+            className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 transition-transform duration-200 group-hover:scale-110"
+            style={{ background: defaultIconBg, border: `1px solid ${accentColor}30`, color: accentColor }}
+          >
             {icon}
           </div>
           <div>
-            <h3 className="text-[14.5px] font-semibold text-[#1E293B] leading-tight">{title}</h3>
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium mt-1 ${statusConfig.bg} ${statusConfig.color}`}>
+            <h3 className="text-[14px] font-bold text-[#1E293B] leading-tight">{title}</h3>
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-semibold mt-1 ${statusConfig.bg} ${statusConfig.color}`}>
               {statusConfig.label}
             </span>
           </div>
@@ -65,20 +77,20 @@ export function AssessmentCard({
       </div>
 
       {/* Description */}
-      <p className="text-[13px] text-[#64748B] leading-relaxed">{description}</p>
+      <p className="text-[12.5px] text-[#64748B] leading-relaxed">{description}</p>
 
       {/* Meta */}
       {(questionCount !== undefined || duration !== undefined) && (
-        <div className="flex items-center gap-4 text-[12px] text-[#94A3B8]">
+        <div className="flex items-center gap-4 text-[11.5px] text-[#94A3B8]">
           {questionCount !== undefined && (
             <span className="flex items-center gap-1.5">
-              <FileQuestion size={13} />
+              <FileQuestion size={12} />
               {questionCount} questions
             </span>
           )}
           {duration !== undefined && (
             <span className="flex items-center gap-1.5">
-              <Clock size={13} />
+              <Clock size={12} />
               {duration} min
             </span>
           )}
@@ -89,7 +101,8 @@ export function AssessmentCard({
       <button
         onClick={onAction}
         disabled={disabled}
-        className="mt-auto w-full h-[38px] flex items-center justify-center gap-2 rounded-lg bg-[#4096ff] hover:bg-[#60a5fa] disabled:opacity-50 disabled:cursor-not-allowed text-white text-[13px] font-semibold transition-all"
+        className="mt-auto w-full h-[38px] flex items-center justify-center gap-2 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed text-white text-[13px] font-bold transition-all duration-200 hover:opacity-90 hover:-translate-y-px active:translate-y-0"
+        style={{ background: `linear-gradient(135deg, ${accentColor}, ${accentColor}cc)`, boxShadow: `0 4px 12px ${accentColor}40` }}
       >
         {actionLabel}
         <ArrowRight size={13} />
@@ -118,16 +131,17 @@ export function QuestionCard({
   onSelect,
 }: QuestionCardProps) {
   return (
-    <div className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl p-6">
+    <div className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl p-6 shadow-sm">
       {/* Question header */}
       <div className="flex items-center justify-between mb-4">
-        <span className="text-[12px] font-medium text-[#64748B] uppercase tracking-wide">
+        <span className="text-[11.5px] font-bold text-[#4096ff] uppercase tracking-widest"
+          style={{ background: "rgba(64,150,255,0.08)", padding: "4px 10px", borderRadius: 8, border: "1px solid rgba(64,150,255,0.15)" }}>
           Question {questionNumber} of {totalQuestions}
         </span>
       </div>
 
       {/* Question text */}
-      <p className="text-[15px] font-medium text-[#1E293B] leading-relaxed mb-6">
+      <p className="text-[15px] font-semibold text-[#1E293B] leading-relaxed mb-6">
         {question}
       </p>
 
@@ -144,16 +158,18 @@ export function QuestionCard({
                 w-full flex items-center gap-3.5 px-4 py-3.5 rounded-xl border text-left
                 text-[13.5px] font-medium transition-all duration-150
                 ${selected
-                  ? "border-[#4096ff] bg-[#EFF6FF] text-[#1E293B] shadow-[0_0_0_3px_rgba(64,150,255,0.12)]"
+                  ? "bg-[#EFF6FF] text-[#1E293B]"
                   : "border-[rgba(30,41,59,0.10)] bg-white text-[#374151] hover:border-[#4096ff]/40 hover:bg-[#F8FAFC]"
                 }
               `}
+              style={selected ? { border: "1px solid #4096ff", boxShadow: "0 0 0 3px rgba(64,150,255,0.12)" } : {}}
             >
               <span
                 className={`
                   w-7 h-7 rounded-lg flex items-center justify-center text-[12px] font-bold shrink-0
-                  ${selected ? "bg-[#4096ff] text-white" : "bg-[#F1F5F9] text-[#64748B]"}
+                  ${selected ? "text-white" : "bg-[#F1F5F9] text-[#64748B]"}
                 `}
+                style={selected ? { background: "linear-gradient(135deg, #4096ff, #60a5fa)" } : {}}
               >
                 {letter}
               </span>
@@ -178,8 +194,8 @@ interface QuestionNavigatorProps {
 
 export function QuestionNavigator({ total, current, answered, onJump }: QuestionNavigatorProps) {
   return (
-    <div className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl p-4">
-      <p className="text-[12px] font-semibold text-[#64748B] uppercase tracking-wide mb-3">
+    <div className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl p-4 shadow-sm">
+      <p className="text-[11px] font-bold text-[#64748B] uppercase tracking-widest mb-3">
         Questions
       </p>
       <div className="grid grid-cols-5 gap-1.5">
@@ -191,14 +207,20 @@ export function QuestionNavigator({ total, current, answered, onJump }: Question
               key={i}
               onClick={() => onJump(i)}
               className={`
-                w-full aspect-square rounded-lg text-[12px] font-semibold transition-all
+                w-full aspect-square rounded-lg text-[12px] font-bold transition-all duration-150
                 ${isCurrent
-                  ? "bg-[#4096ff] text-white shadow-[0_2px_6px_rgba(64,150,255,0.4)]"
+                  ? "text-white"
                   : isAnswered
-                    ? "bg-[#DBEAFE] text-[#4096ff] border border-[#4096ff]/20"
+                    ? "text-[#4096ff] border border-[#4096ff]/25"
                     : "bg-[#F1F5F9] text-[#64748B] hover:bg-[#E2E8F0]"
                 }
               `}
+              style={isCurrent
+                ? { background: "linear-gradient(135deg, #4096ff, #60a5fa)", boxShadow: "0 2px 8px rgba(64,150,255,0.4)" }
+                : isAnswered
+                  ? { background: "rgba(64,150,255,0.1)" }
+                  : {}
+              }
             >
               {i + 1}
             </button>
@@ -206,13 +228,13 @@ export function QuestionNavigator({ total, current, answered, onJump }: Question
         })}
       </div>
       {/* Legend */}
-      <div className="flex items-center gap-4 mt-3 text-[11px] text-[#94A3B8]">
+      <div className="flex items-center gap-4 mt-3 text-[10.5px] text-[#94A3B8]">
         <span className="flex items-center gap-1.5">
           <span className="w-2.5 h-2.5 rounded-sm bg-[#4096ff]" />
           Current
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="w-2.5 h-2.5 rounded-sm bg-[#DBEAFE] border border-[#4096ff]/20" />
+          <span className="w-2.5 h-2.5 rounded-sm border border-[#4096ff]/25" style={{ background: "rgba(64,150,255,0.1)" }} />
           Answered
         </span>
         <span className="flex items-center gap-1.5">
@@ -256,14 +278,20 @@ export function AssessmentTimer({ durationSeconds, onExpire }: AssessmentTimerPr
   return (
     <div
       className={`
-        flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13.5px] font-mono font-semibold
+        flex items-center gap-2 px-3.5 py-2 rounded-xl text-[13.5px] font-mono font-bold
         ${isDanger
-          ? "bg-[#FEF2F2] text-[#DC2626] border border-[#FECACA]"
+          ? "text-[#DC2626] animate-pulse"
           : isWarning
-            ? "bg-[#FFF7ED] text-[#C2410C] border border-[#FDBA74]/50"
-            : "bg-[#F1F5F9] text-[#1E293B] border border-[rgba(30,41,59,0.10)]"
+            ? "text-[#C2410C]"
+            : "text-[#1E293B]"
         }
       `}
+      style={isDanger
+        ? { background: "rgba(254,226,226,0.9)", border: "1px solid rgba(254,202,202,0.8)" }
+        : isWarning
+          ? { background: "rgba(255,247,237,0.9)", border: "1px solid rgba(253,186,116,0.5)" }
+          : { background: "rgba(241,245,249,0.9)", border: "1px solid rgba(30,41,59,0.10)" }
+      }
     >
       <Clock size={14} className={isDanger ? "animate-pulse" : ""} />
       {mins}:{secs}
@@ -285,11 +313,11 @@ export function ProgressBar({ current, total, answered }: ProgressBarProps) {
     <div className="flex items-center gap-3">
       <div className="flex-1 h-1.5 bg-[#E2E8F0] rounded-full overflow-hidden">
         <div
-          className="h-full bg-[#4096ff] rounded-full transition-all duration-300"
-          style={{ width: `${pct}%` }}
+          className="h-full rounded-full transition-all duration-500"
+          style={{ width: `${pct}%`, background: "linear-gradient(90deg, #4096ff, #60a5fa)" }}
         />
       </div>
-      <span className="text-[12px] font-medium text-[#64748B] shrink-0 min-w-[52px] text-right">
+      <span className="text-[12px] font-bold text-[#64748B] shrink-0 min-w-[52px] text-right">
         {answered}/{total}
       </span>
     </div>
@@ -309,17 +337,18 @@ export function ResultCard({ label, value, sub, accent }: ResultCardProps) {
   return (
     <div
       className={`
-        rounded-xl p-4 border
+        rounded-xl p-4 border transition-all duration-200
         ${accent
-          ? "bg-[#4096ff] border-[#4096ff] text-white"
-          : "bg-white border-[rgba(30,41,59,0.10)] text-[#1E293B]"
+          ? "text-white"
+          : "bg-white border-[rgba(30,41,59,0.10)] text-[#1E293B] hover:shadow-sm"
         }
       `}
+      style={accent ? { background: "linear-gradient(135deg, #4096ff 0%, #60a5fa 100%)", border: "none", boxShadow: "0 4px 16px rgba(64,150,255,0.35)" } : {}}
     >
-      <p className={`text-[11.5px] font-medium uppercase tracking-wide mb-1 ${accent ? "text-white/70" : "text-[#64748B]"}`}>
+      <p className={`text-[11px] font-bold uppercase tracking-widest mb-1 ${accent ? "text-white/70" : "text-[#64748B]"}`}>
         {label}
       </p>
-      <p className={`text-[26px] font-bold leading-none ${accent ? "text-white" : "text-[#1E293B]"}`}>
+      <p className={`text-[26px] font-extrabold leading-none ${accent ? "text-white" : "text-[#1E293B]"}`}>
         {value}
       </p>
       {sub && (
@@ -341,17 +370,18 @@ interface EmptyStateProps {
 export function EmptyState({ icon, title, description, action }: EmptyStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
-      <div className="w-14 h-14 rounded-2xl bg-[#F1F5F9] border border-[rgba(30,41,59,0.08)] flex items-center justify-center mb-4 text-[#94A3B8]">
-        {icon ?? <BarChart3 size={24} />}
+      <div className="w-16 h-16 rounded-2xl bg-[#F1F5F9] border border-[rgba(30,41,59,0.08)] flex items-center justify-center mb-5 text-[#CBD5E1] animate-float">
+        {icon ?? <BarChart3 size={28} />}
       </div>
-      <h3 className="text-[15px] font-semibold text-[#1E293B] mb-1.5">{title}</h3>
+      <h3 className="text-[15px] font-bold text-[#1E293B] mb-2">{title}</h3>
       {description && (
         <p className="text-[13px] text-[#64748B] max-w-xs leading-relaxed">{description}</p>
       )}
       {action && (
         <button
           onClick={action.onClick}
-          className="mt-5 px-5 py-2 rounded-lg bg-[#4096ff] hover:bg-[#60a5fa] text-white text-[13px] font-semibold transition-all"
+          className="mt-6 px-6 py-2.5 rounded-xl text-white text-[13px] font-bold transition-all hover:opacity-90 hover:-translate-y-px"
+          style={{ background: "linear-gradient(135deg, #4096ff, #60a5fa)", boxShadow: "0 4px 14px rgba(64,150,255,0.35)" }}
         >
           {action.label}
         </button>
@@ -364,8 +394,13 @@ export function EmptyState({ icon, title, description, action }: EmptyStateProps
 
 export function LoadingState({ message = "Loading…" }: { message?: string }) {
   return (
-    <div className="flex flex-col items-center justify-center py-20 gap-4">
-      <div className="w-9 h-9 rounded-full border-[3px] border-[#4096ff] border-t-transparent animate-spin" />
+    <div className="flex flex-col items-center justify-center py-20 gap-5">
+      {/* Branded spinner — nested rings */}
+      <div className="relative w-10 h-10">
+        <div className="absolute inset-0 rounded-full border-[3px] border-[#4096ff]/20" />
+        <div className="absolute inset-0 rounded-full border-[3px] border-transparent border-t-[#4096ff] animate-spin" />
+        <div className="absolute inset-1.5 rounded-full border-[2px] border-transparent border-t-[#60a5fa]/60 animate-spin" style={{ animationDirection: "reverse", animationDuration: "0.6s" }} />
+      </div>
       <p className="text-[13px] text-[#64748B] font-medium">{message}</p>
     </div>
   );
@@ -381,17 +416,18 @@ interface ErrorStateProps {
 export function ErrorState({ message = "Something went wrong.", onRetry }: ErrorStateProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 gap-4">
-      <div className="w-12 h-12 rounded-2xl bg-[#FEF2F2] border border-[#FECACA] flex items-center justify-center">
-        <AlertCircle size={22} className="text-[#DC2626]" />
+      <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+        style={{ background: "rgba(254,226,226,0.8)", border: "1px solid rgba(254,202,202,0.8)" }}>
+        <AlertCircle size={24} className="text-[#DC2626]" />
       </div>
       <div className="text-center">
-        <p className="text-[14px] font-semibold text-[#1E293B] mb-1">Unable to load</p>
+        <p className="text-[14px] font-bold text-[#1E293B] mb-1">Unable to load</p>
         <p className="text-[13px] text-[#64748B] max-w-xs">{message}</p>
       </div>
       {onRetry && (
         <button
           onClick={onRetry}
-          className="flex items-center gap-2 px-4 py-2 rounded-lg border border-[rgba(30,41,59,0.14)] text-[13px] font-medium text-[#1E293B] hover:bg-[#F1F5F9] transition-all"
+          className="flex items-center gap-2 px-5 py-2.5 rounded-xl border border-[rgba(30,41,59,0.14)] text-[13px] font-semibold text-[#1E293B] hover:bg-[#F1F5F9] transition-all"
         >
           <RefreshCw size={13} />
           Try again
@@ -401,7 +437,7 @@ export function ErrorState({ message = "Something went wrong.", onRetry }: Error
   );
 }
 
-// ─── ScoreRing (compact score circle) ────────────────────────────────────────
+// ─── ScoreRing (animated score circle) ────────────────────────────────────────
 
 interface ScoreRingProps {
   percentage: number;
@@ -409,9 +445,18 @@ interface ScoreRingProps {
 }
 
 export function ScoreRing({ percentage, size = 80 }: ScoreRingProps) {
+  const [animated, setAnimated] = useState(false);
   const r = (size - 8) / 2;
   const circ = 2 * Math.PI * r;
   const offset = circ - (percentage / 100) * circ;
+
+  // Color based on score
+  const color = percentage >= 70 ? "#10b981" : percentage >= 40 ? "#4096ff" : "#f43f5e";
+
+  useEffect(() => {
+    const t = setTimeout(() => setAnimated(true), 100);
+    return () => clearTimeout(t);
+  }, []);
 
   return (
     <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
@@ -419,13 +464,14 @@ export function ScoreRing({ percentage, size = 80 }: ScoreRingProps) {
         <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="#E2E8F0" strokeWidth={4} />
         <circle
           cx={size / 2} cy={size / 2} r={r}
-          fill="none" stroke="#4096ff" strokeWidth={4}
-          strokeDasharray={circ} strokeDashoffset={offset}
+          fill="none" stroke={color} strokeWidth={4}
+          strokeDasharray={circ}
+          strokeDashoffset={animated ? offset : circ}
           strokeLinecap="round"
-          className="transition-all duration-700"
+          style={{ transition: "stroke-dashoffset 0.8s cubic-bezier(0.4,0,0.2,1)" }}
         />
       </svg>
-      <span className="absolute text-[13px] font-bold text-[#1E293B]">{Math.round(percentage)}%</span>
+      <span className="absolute text-[12px] font-extrabold" style={{ color }}>{Math.round(percentage)}%</span>
     </div>
   );
 }

@@ -69,11 +69,12 @@ function BrandPanel() {
 
       {/* Logo */}
       <div className="relative flex items-center gap-3">
-        <div className="w-10 h-10 rounded-[11px] bg-[#4096FF] flex items-center justify-center shadow-[0_4px_16px_rgba(64,150,255,0.5)]">
+        <div className="w-10 h-10 rounded-[11px] flex items-center justify-center shadow-[0_4px_16px_rgba(64,150,255,0.5)]"
+          style={{ background: "linear-gradient(135deg, #4096FF 0%, #818cf8 100%)" }}>
           <Brain size={20} className="text-white" />
         </div>
         <span className="text-white font-extrabold text-[22px] tracking-[-0.03em]">
-          Assess<span className="text-[#4096FF]">AI</span>
+          Grow<span style={{ color: "#60A5FA" }}>Cline</span>
         </span>
       </div>
 
@@ -89,12 +90,12 @@ function BrandPanel() {
         <h2 className="text-[clamp(28px,3.5vw,44px)] font-extrabold text-white leading-[1.1] tracking-[-0.03em]">
           Hire smarter.
           <br />
-          <span className="text-[#4096FF]">Assess faster.</span>
+          <span style={{ color: "#60A5FA" }}>Assess faster.</span>
         </h2>
 
         <p className="text-[15px] text-[#64748B] leading-[1.75] max-w-[340px]">
-          Join 1,200+ companies that transformed their hiring with adaptive AI
-          interviews, live proctoring, and deep analytics.
+          Join 1,200+ companies that transformed their hiring with GrowCline&apos;s
+          adaptive AI interviews, live proctoring, and deep analytics.
         </p>
 
         {/* Stat cards */}
@@ -108,11 +109,12 @@ function BrandPanel() {
       {/* Bottom testimonial */}
       <div className="relative bg-white/5 border border-white/10 rounded-2xl p-5">
         <p className="text-[13.5px] text-[#94A3B8] leading-[1.7] italic mb-4">
-          &ldquo;AssessAI cut our screening time by 70%. The AI insights are
+          &ldquo;GrowCline cut our screening time by 70%. The AI insights are
           remarkably accurate and our recruiters love it.&rdquo;
         </p>
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-full bg-[#4096FF] flex items-center justify-center font-bold text-white text-[13px]">
+          <div className="w-9 h-9 rounded-full flex items-center justify-center font-bold text-white text-[13px]"
+            style={{ background: "linear-gradient(135deg, #4096FF, #818cf8)" }}>
             SP
           </div>
           <div>
@@ -129,14 +131,15 @@ function BrandPanel() {
 function MobileLogoBar() {
   return (
     <div className="lg:hidden flex items-center justify-center gap-2.5 py-6 border-b border-[rgba(30,41,59,0.07)]">
-      <div className="w-8 h-8 rounded-[9px] bg-[#4096FF] flex items-center justify-center shadow-[0_2px_8px_rgba(64,150,255,0.4)]">
+      <div className="w-8 h-8 rounded-[9px] flex items-center justify-center shadow-[0_2px_8px_rgba(64,150,255,0.4)]"
+        style={{ background: "linear-gradient(135deg, #4096FF, #818cf8)" }}>
         <Brain size={15} className="text-white" />
       </div>
       <Link
         href="/"
         className="text-[#1E293B] font-extrabold text-[18px] tracking-[-0.025em] hover:opacity-80 transition-opacity"
       >
-        Assess<span className="text-[#4096FF]">AI</span>
+        Grow<span className="text-[#4096FF]">Cline</span>
       </Link>
     </div>
   );

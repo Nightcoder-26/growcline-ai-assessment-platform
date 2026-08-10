@@ -4,14 +4,15 @@ import { Inter, JetBrains_Mono } from 'next/font/google'
 import './globals.css'
 import { InterviewSessionProvider } from '@/contexts/InterviewSessionContext'
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const inter = Inter({ subsets: ['latin'], variable: '--font-inter', display: 'swap' })
 const jetbrainsMono = JetBrains_Mono({
   subsets: ['latin'],
   variable: '--font-jetbrains',
+  display: 'swap',
 })
 
 export const metadata: Metadata = {
-  title: 'AssessAI — AI-Powered Assessment & Interview Intelligence',
+  title: 'GrowCline — AI-Powered Assessment & Interview Intelligence',
   description:
     'Automate screening with adaptive AI interviews, live proctoring, and deep analytics. Go from applicant to offer in days, not weeks.',
   generator: 'v0.app',

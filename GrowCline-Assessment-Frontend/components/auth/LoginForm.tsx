@@ -174,7 +174,7 @@ export default function LoginForm() {
           Welcome back 👋
         </h1>
         <p className="mt-1.5 text-[14px] text-[#64748B]">
-          Sign in to your AssessAI account.
+          Sign in to your GrowCline account.
         </p>
       </div>
 
