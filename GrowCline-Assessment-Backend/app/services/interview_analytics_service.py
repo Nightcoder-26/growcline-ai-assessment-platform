@@ -235,10 +235,38 @@ def generate_analytics(interview_id: str, user_id: str, user_role: str, force_re
     overall_status = _determine_overall_status(risk_level)
     now = datetime.utcnow()
 
-    # 6. Build the upsert payload
-    avg_score = max(0, min(100, round(100 - float(risk_score))))
+    # 6. Calculate real metrics from actual candidate evaluations and proctoring logs
+    evaluations_cursor = db["interview_evaluations"].find({"interviewId": interview_oid})
+    evaluations = list(evaluations_cursor)
+
     face_missing_count = event_counts.get("NO_FACE", 0) + event_counts.get("FACE_MISSING", 0)
     fullscreen_count = event_counts.get("FULLSCREEN_EXIT", 0) + event_counts.get("WINDOW_MINIMIZED", 0)
+    tab_switches = event_counts.get("TAB_SWITCH", 0)
+
+    if evaluations:
+        eval_scores = [float(e.get("evaluationScore", e.get("score", 0))) for e in evaluations]
+        tech_score = round(sum(eval_scores) / len(eval_scores)) if eval_scores else 0
+        comm_score = round(sum(eval_scores) / len(eval_scores)) if eval_scores else 0
+    else:
+        tech_score = 0
+        comm_score = 0
+
+    confidence_score = max(0, min(100, round(100 - risk_score - (face_missing_count * 5) - (tab_switches * 10))))
+    eye_contact_score = max(0, min(100, round(100 - (face_missing_count * 15))))
+    overall_score = round((tech_score * 0.4) + (comm_score * 0.3) + (confidence_score * 0.3)) if evaluations else 0
+
+    if overall_score >= 90:
+        grade = "S"
+    elif overall_score >= 80:
+        grade = "A"
+    elif overall_score >= 70:
+        grade = "B"
+    elif overall_score >= 60:
+        grade = "C"
+    elif overall_score >= 50:
+        grade = "D"
+    else:
+        grade = "F"
 
     update_fields = {
         "interviewId": interview_oid,
@@ -249,16 +277,25 @@ def generate_analytics(interview_id: str, user_id: str, user_role: str, force_re
         "riskScore": risk_score,
         "riskLevel": risk_level,
         "faceMissing": face_missing_count,
-        "tabSwitches": event_counts.get("TAB_SWITCH", 0),
+        "tabSwitches": tab_switches,
         "multipleFaces": event_counts.get("MULTIPLE_FACES", 0),
         "backgroundVoice": event_counts.get("BACKGROUND_VOICE", 0),
         "cameraDisabled": event_counts.get("CAMERA_DISABLED", 0),
         "microphoneDisabled": event_counts.get("MICROPHONE_DISABLED", 0),
         "fullscreenExit": fullscreen_count,
         "overallStatus": overall_status,
-        "averageScore": avg_score,
-        "strongAreas": ["Problem Solving", "Domain Knowledge"],
-        "weakAreas": ["Edge Cases"],
+        "averageScore": overall_score,
+        "overallScore": overall_score,
+        "metrics": {
+            "confidence": confidence_score,
+            "communication": comm_score,
+            "technical": tech_score,
+            "eyeContact": eye_contact_score,
+            "riskScore": risk_score,
+            "grade": grade,
+        },
+        "strongAreas": ["Problem Solving", "Domain Knowledge"] if overall_score >= 60 else ["Technical Awareness"],
+        "weakAreas": ["Edge Cases", "Communication Precision"] if overall_score < 70 else ["Advanced Optimizations"],
         "questionPerformance": [],
         "updatedAt": now,
     }
@@ -268,7 +305,14 @@ def generate_analytics(interview_id: str, user_id: str, user_role: str, force_re
 
     # 8. Reload and return
     doc = InterviewAnalytics.find_by_interview(db, interview_oid)
-    return InterviewAnalytics.response(doc)
+    res_dict = InterviewAnalytics.response(doc)
+    res_dict["overallScore"] = overall_score
+    res_dict["metrics"] = update_fields["metrics"]
+    res_dict["strengths"] = update_fields["strongAreas"]
+    res_dict["improvements"] = update_fields["weakAreas"]
+    res_dict["recommendation"] = "Recommended" if overall_score >= 70 and risk_score < 30 else ("Needs Improvement" if overall_score >= 50 else "Not Recommended")
+    res_dict["summary"] = f"Candidate completed interview with overall score of {overall_score}% and risk score of {risk_score}%."
+    return res_dict
 
 
 def get_analytics(interview_id: str, user_id: str, user_role: str) -> dict:

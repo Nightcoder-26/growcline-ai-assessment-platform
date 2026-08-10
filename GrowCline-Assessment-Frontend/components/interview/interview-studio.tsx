@@ -93,6 +93,15 @@ export function InterviewStudio() {
   const [candidateAnswerText,   setCandidateAnswerText]   = useState("");
   const [answeredIds,           setAnsweredIds]           = useState<Set<string>>(new Set());
 
+  // Per-question 2-minute countdown timer
+  const QUESTION_SECONDS = 120;
+  const [questionTimer,         setQuestionTimer]         = useState(QUESTION_SECONDS);
+  const questionTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Question history for Previous navigation
+  const [questionHistory, setQuestionHistory] = useState<import("@/hooks/useInterview").InterviewQuestion[]>([]);
+  const [historyIndex,    setHistoryIndex]    = useState(-1); // -1 = live mode
+
   // Fullscreen UI state
   const [fullscreenRequested,   setFullscreenRequested]   = useState(false);
   const [fullscreenError,       setFullscreenError]       = useState<string | null>(null);
@@ -184,6 +193,27 @@ export function InterviewStudio() {
     const timer = setInterval(() => setElapsed((p) => p + 1), 1_000);
     return () => clearInterval(timer);
   }, [live]);
+
+  // ── Per-question 2-minute countdown ──────────────────────────────────────
+  // Resets on each new question; auto-advances when it hits 0.
+  useEffect(() => {
+    if (!recording || !currentQuestion) return;
+    setQuestionTimer(QUESTION_SECONDS);
+    if (questionTimerRef.current) clearInterval(questionTimerRef.current);
+    questionTimerRef.current = setInterval(() => {
+      setQuestionTimer((prev) => {
+        if (prev <= 1) {
+          clearInterval(questionTimerRef.current!);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1_000);
+    return () => {
+      if (questionTimerRef.current) clearInterval(questionTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recording, currentQuestion?.id]);
 
   // ── Proctoring lifecycle ────────────────────────────────────────────────────
   // Proctoring is activated ONLY when the user presses Record and deactivated
@@ -314,35 +344,37 @@ export function InterviewStudio() {
   const handleSubmitAndNext = useCallback(async () => {
     if (!interview || !currentQuestion) return;
 
+    // If browsing history, snap back to live mode first
+    if (historyIndex !== -1) {
+      setHistoryIndex(-1);
+      return;
+    }
+
     const answer = candidateAnswerText.trim() || "No spoken answer recorded.";
     try {
       const eval_ = await submitAnswer(interview.id, currentQuestion.id, answer);
       setAnsweredIds((prev) => new Set([...prev, currentQuestion.id]));
 
+      // Push answered question to history
+      setQuestionHistory((prev) => [...prev, currentQuestion]);
+
       if (eval_.interviewComplete) {
         showToast("Interview complete! Generating analytics report…");
-
-        // Deactivate proctoring BEFORE ending session (so fullscreen exit is not a violation)
         deactivateProctoring();
-
         try {
           await apiClient.post(`/api/interview/end/${interview.id}`);
         } catch {
           await endInterview(interview.id);
         }
-
-        // Exit fullscreen gracefully
         if (document.fullscreenElement) {
           document.exitFullscreen().catch(() => {});
         }
-
         updateSession({
           recordingStatus: "ended",
           duration: `${Math.max(1, Math.round(elapsed / 60))} Minutes`,
         });
         freezeSession();
         setSessionEnded(true);
-
         setTimeout(() => {
           router.push(`/interview-analytics?interviewId=${interview.id}`);
         }, 1_500);
@@ -350,7 +382,6 @@ export function InterviewStudio() {
       }
 
       await getNextQuestion(interview.id);
-      // Keep proctoring active between questions (only deactivate on stop/end)
       setRecording(false);
       setPaused(false);
       setElapsed(0);
@@ -361,11 +392,36 @@ export function InterviewStudio() {
       showToast(msg, true);
     }
   }, [
-    interview, currentQuestion, candidateAnswerText,
+    interview, currentQuestion, candidateAnswerText, historyIndex,
     submitAnswer, endInterview, getNextQuestion,
     clearBlobUrl, router, elapsed,
     updateSession, freezeSession, deactivateProctoring,
   ]);
+
+  // ── Go to previous question (browse history) ──────────────────────────────
+
+  const handlePrev = useCallback(() => {
+    if (questionHistory.length === 0) return;
+    if (historyIndex === -1) {
+      // Jump to last answered question in history
+      setHistoryIndex(questionHistory.length - 1);
+    } else if (historyIndex > 0) {
+      setHistoryIndex(historyIndex - 1);
+    }
+  }, [questionHistory, historyIndex]);
+
+  // The question currently displayed (either live or from history)
+  const displayedQuestion =
+    historyIndex !== -1 && questionHistory[historyIndex]
+      ? questionHistory[historyIndex]
+      : currentQuestion;
+
+  const displayedIndex =
+    historyIndex !== -1
+      ? historyIndex
+      : (displayedQuestion?.questionNumber ?? 1) - 1;
+
+  const canGoPrev = historyIndex !== -1 ? historyIndex > 0 : questionHistory.length > 0;
 
   // ── Upload video ──────────────────────────────────────────────────────────
 
@@ -514,32 +570,8 @@ export function InterviewStudio() {
         {/* ── Main Layout Grid: Left Question Focus / Right Compact Video & Proctoring ── */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
 
-          {/* Left Column: Prominent Question Panel + Recording Controls */}
+          {/* Left Column: Recording Controls (always visible) + Question Panel (locked until recording) */}
           <div className="flex flex-col gap-5">
-            {currentQuestion ? (
-              <QuestionPanel
-                question={{
-                  questionId: currentQuestion.id,
-                  category:   currentQuestion.questionType,
-                  prompt:     currentQuestion.questionText,
-                  hint:       `Question ${currentQuestion.questionNumber} of ${totalQuestions} — 15 Structured Questions Breakdown`,
-                }}
-                index={currentQNum - 1}
-                total={totalQuestions}
-                answered={answeredArray}
-                loading={loading}
-                onPrev={() => {}}
-                onNext={handleSubmitAndNext}
-                onJump={() => {}}
-                candidateAnswer={candidateAnswerText}
-                onAnswerChange={setCandidateAnswerText}
-              />
-            ) : (
-              <div className="rounded-[28px] border border-white/10 bg-[#1E293B] p-6 flex items-center justify-center min-h-[200px]">
-                <div className="w-8 h-8 rounded-full border-4 border-[#4096ff] border-t-transparent animate-spin" />
-              </div>
-            )}
-
             <RecordingControls
               recording={recording}
               paused={paused}
@@ -552,6 +584,69 @@ export function InterviewStudio() {
               onUpload={handleUpload}
               onSubmitNext={handleSubmitAndNext}
             />
+
+            {/* Question is LOCKED until recording starts */}
+            {!recording && !mediaBlobUrl ? (
+              <div className="rounded-[28px] border border-dashed border-[#4096ff]/40 bg-[#111827]/80 p-10 flex flex-col items-center justify-center gap-4 text-center shadow-inner">
+                <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-[#4096ff]/10">
+                  <svg className="h-8 w-8 text-[#4096ff]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 11c0-1.1.9-2 2-2s2 .9 2 2-2 4-2 4m-2 0H8m4 0h.01M12 19a7 7 0 100-14 7 7 0 000 14z" />
+                  </svg>
+                </div>
+                <h3 className="text-lg font-bold text-white">Press ▶ Start Recording to Begin</h3>
+                <p className="text-sm text-slate-400 max-w-xs">Your interview question will appear here once you start the recording. Each question has a <span className="text-[#4096ff] font-semibold">2-minute timer</span>.</p>
+              </div>
+            ) : displayedQuestion ? (
+              <>
+                {/* 2-minute countdown timer */}
+                {recording && historyIndex === -1 && (
+                  <div className={`flex items-center gap-3 rounded-2xl border px-5 py-3 ${
+                    questionTimer <= 30
+                      ? "border-red-500/40 bg-red-950/60 text-red-300"
+                      : questionTimer <= 60
+                      ? "border-amber-500/40 bg-amber-950/60 text-amber-300"
+                      : "border-[#4096ff]/30 bg-[#111827]/80 text-[#4096ff]"
+                  }`}>
+                    <svg className="h-5 w-5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <span className="font-mono font-bold text-lg">
+                      {String(Math.floor(questionTimer / 60)).padStart(2, "0")}:{String(questionTimer % 60).padStart(2, "0")}
+                    </span>
+                    <span className="text-sm ml-1 font-medium opacity-80">
+                      {questionTimer <= 0 ? "⏰ Time up — submit or continue" : "remaining for this question"}
+                    </span>
+                  </div>
+                )}
+                {historyIndex !== -1 && (
+                  <div className="rounded-2xl border border-amber-500/30 bg-amber-950/40 px-5 py-3 text-amber-300 text-sm font-medium flex items-center gap-2">
+                    📖 Reviewing Question {historyIndex + 1} — <button onClick={() => setHistoryIndex(-1)} className="underline text-amber-200 hover:text-white">Return to Live Question</button>
+                  </div>
+                )}
+                <QuestionPanel
+                  question={{
+                    questionId: displayedQuestion.id,
+                    category:   displayedQuestion.questionType,
+                    prompt:     displayedQuestion.questionText,
+                    hint:       `Question ${displayedQuestion.questionNumber} of ${totalQuestions}`,
+                  }}
+                  index={displayedIndex}
+                  total={totalQuestions}
+                  answered={answeredArray}
+                  loading={loading && historyIndex === -1}
+                  canGoPrev={canGoPrev}
+                  onPrev={handlePrev}
+                  onNext={handleSubmitAndNext}
+                  onJump={() => {}}
+                  candidateAnswer={historyIndex === -1 ? candidateAnswerText : ""}
+                  onAnswerChange={historyIndex === -1 ? setCandidateAnswerText : undefined}
+                />
+              </>
+            ) : (
+              <div className="rounded-[28px] border border-white/10 bg-[#1E293B] p-6 flex items-center justify-center min-h-[200px]">
+                <div className="w-8 h-8 rounded-full border-4 border-[#4096ff] border-t-transparent animate-spin" />
+              </div>
+            )}
 
             <SessionMetrics live={live} clarity={clarity} pace={pace} />
           </div>

@@ -21,6 +21,7 @@ interface QuestionPanelProps {
   total: number;
   answered: boolean[];
   loading?: boolean;
+  canGoPrev?: boolean;
   onPrev: () => void;
   onNext: () => void;
   onJump: (i: number) => void;
@@ -35,6 +36,7 @@ export function QuestionPanel({
   total,
   answered,
   loading = false,
+  canGoPrev = false,
   onPrev,
   onNext,
   onJump,
@@ -122,8 +124,8 @@ export function QuestionPanel({
       <div className="grid grid-cols-2 gap-4">
         <button
           onClick={onPrev}
-          disabled={index === 0}
-          className="flex items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 py-3 text-white transition hover:border-[#4096ff] disabled:opacity-40"
+          disabled={!canGoPrev}
+          className="flex items-center justify-center gap-2 rounded-2xl border border-slate-700 bg-slate-800 py-3 text-white transition hover:border-[#4096ff] disabled:opacity-40 disabled:cursor-not-allowed"
         >
           <ChevronLeft className="h-5 w-5" />
           Previous
