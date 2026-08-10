@@ -35,6 +35,7 @@ interface VideoStageProps {
   elapsed:     string;
   take:        number;
   faceDetected?: boolean;
+  compact?:    boolean;
   onToggleCam: () => void;
   onToggleMic: () => void;
   /**
@@ -64,6 +65,7 @@ export function VideoStage({
   elapsed,
   take,
   faceDetected = true,
+  compact = false,
   onToggleCam,
   onToggleMic,
   onFacePresenceChange,
@@ -326,7 +328,7 @@ export function VideoStage({
       )}
 
       {/* ── Webcam Stage ── */}
-      <div className="relative h-[520px] w-full bg-[#0F172A]">
+      <div className={`relative w-full bg-[#0F172A] ${compact ? "h-[220px]" : "h-[520px]"}`}>
         {camOn ? (
           <>
             <Webcam

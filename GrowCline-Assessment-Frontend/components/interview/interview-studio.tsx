@@ -196,7 +196,7 @@ export function InterviewStudio() {
   useEffect(() => {
     if (sessionStarted) return;
     setSessionStarted(true);
-    startInterview({ jobRole, interviewType, difficulty, totalQuestions: 5 })
+    startInterview({ jobRole, interviewType, difficulty, totalQuestions: 15 })
       .then(({ interview: sess }) => {
         updateSession({
           interviewId:     sess.id,
@@ -400,7 +400,7 @@ export function InterviewStudio() {
     [live],
   );
 
-  const totalQuestions = interview?.totalQuestions ?? 5;
+  const totalQuestions = interview?.totalQuestions ?? 15;
   const currentQNum    = interview?.currentQuestion ?? 1;
   const answeredArray  = Array.from({ length: totalQuestions }, (_, i) => {
     if (!currentQuestion) return false;
@@ -511,32 +511,18 @@ export function InterviewStudio() {
       <div className="relative mx-auto flex max-w-7xl flex-col gap-6 px-6 py-8">
         <StudioHeader clock={clock} />
 
-        {/* ── Main grid ── */}
+        {/* ── Main Layout Grid: Left Question Focus / Right Compact Video & Proctoring ── */}
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
 
-          <VideoStage
-            webcamRef={webcamRef}
-            recording={recording}
-            paused={paused}
-            camOn={camOn}
-            micOn={micOn}
-            elapsed={formatTime(elapsed)}
-            take={currentQNum}
-            faceDetected={proctoringStatus.faceDetected}
-            onToggleCam={() => setCamOn((v) => !v)}
-            onToggleMic={() => setMicOn((v) => !v)}
-            onFacePresenceChange={handleFacePresenceChange}
-            onMultipleFacesDetected={handleMultipleFacesDetected}
-          />
-
-          <div className="flex flex-col gap-4">
+          {/* Left Column: Prominent Question Panel + Recording Controls */}
+          <div className="flex flex-col gap-5">
             {currentQuestion ? (
               <QuestionPanel
                 question={{
                   questionId: currentQuestion.id,
                   category:   currentQuestion.questionType,
                   prompt:     currentQuestion.questionText,
-                  hint:       `Question ${currentQuestion.questionNumber} of ${totalQuestions}`,
+                  hint:       `Question ${currentQuestion.questionNumber} of ${totalQuestions} — 15 Structured Questions Breakdown`,
                 }}
                 index={currentQNum - 1}
                 total={totalQuestions}
@@ -569,6 +555,39 @@ export function InterviewStudio() {
 
             <SessionMetrics live={live} clarity={clarity} pace={pace} />
           </div>
+
+          {/* Right Column: Compact PIP Webcam Stage + Proctoring Status */}
+          <div className="flex flex-col gap-5">
+            <VideoStage
+              webcamRef={webcamRef}
+              recording={recording}
+              paused={paused}
+              camOn={camOn}
+              micOn={micOn}
+              elapsed={formatTime(elapsed)}
+              take={currentQNum}
+              compact={true}
+              faceDetected={proctoringStatus.faceDetected}
+              onToggleCam={() => setCamOn((v) => !v)}
+              onToggleMic={() => setMicOn((v) => !v)}
+              onFacePresenceChange={handleFacePresenceChange}
+              onMultipleFacesDetected={handleMultipleFacesDetected}
+            />
+
+            {/* Live Proctoring Status */}
+            {interview?.id && (
+              <div className="space-y-4">
+                <StatusPanel
+                  faceDetected={proctoringStatus.faceDetected}
+                  microphone={proctoringStatus.microphone}
+                  fullscreen={proctoringStatus.fullscreen}
+                  network={proctoringStatus.network}
+                />
+                <AlertsPanel alerts={proctoringAlerts} />
+              </div>
+            )}
+          </div>
+
         </div>
 
         {/* ── Fullscreen lock banner (shown when recording but not in fullscreen) ── */}

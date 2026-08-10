@@ -212,6 +212,17 @@ def _extract_json(text: str) -> dict:
 # AI Question Generation
 # ---------------------------------------------------------------------------
 
+def get_question_category(question_number: int) -> str:
+    """Return the designated question category for a 15-question professional interview."""
+    if 1 <= question_number <= 5:
+        return "THEORY"
+    elif 6 <= question_number <= 10:
+        return "APPLICATION"
+    elif 11 <= question_number <= 12:
+        return "CODING"
+    else:
+        return "CASE_STUDY"
+
 def generate_ai_question(
     job_role: str,
     interview_type: str,
@@ -222,23 +233,10 @@ def generate_ai_question(
     resume_skills: list[str] | None = None,
 ) -> str:
     """
-    Generate a single interview question using the Groq LLM.
-
-    Args:
-        job_role:           Target job role.
-        interview_type:     TECHNICAL | HR | BEHAVIORAL | RESUME_BASED.
-        difficulty:         EASY | MEDIUM | HARD.
-        question_number:    Current question index (1-based).
-        total_questions:    Total questions in the session.
-        previous_questions: List of already-asked question texts to avoid repetition.
-        resume_skills:      Skills extracted from the candidate's resume.
-
-    Returns:
-        Question text string.
-
-    Raises:
-        RuntimeError: if the AI service fails.
+    Generate a single interview question matching the designated category
+    (5 Theory, 5 Application, 2 Coding, 3 Case Study for a 15-question set).
     """
+    category = get_question_category(question_number)
     prev_list = "\n".join(
         f"- {q}" for q in (previous_questions or [])
     ) or "None"
@@ -251,6 +249,7 @@ def generate_ai_question(
         difficulty=difficulty,
         question_number=question_number,
         total_questions=total_questions,
+        category=category,
         previous_questions=prev_list,
         resume_skills=skills_text,
     )
@@ -264,34 +263,36 @@ def generate_ai_question(
     except Exception as exc:
         logger.warning("Groq AI question generation fallback triggered: %s", exc)
 
-    # Curated Question Fallback Pool
-    fallback_pool = {
-        "Frontend Developer": [
-            "Explain how React's Virtual DOM reconciliation algorithm works during component state updates.",
-            "How do you optimize Core Web Vitals and bundle performance in Next.js applications?",
-            "Describe CSS specificity, flexbox vs grid layouts, and responsive design strategies.",
-            "How do custom React hooks help manage stateful logic across multiple components?",
-            "What strategies do you use for secure client-side authentication and JWT token management?"
+    # Category-aligned Fallback Question Pools (5 Theory, 5 Application, 2 Coding, 3 Case Study)
+    category_pools = {
+        "THEORY": [
+            "Explain the concept of event loop and non-blocking I/O architecture in high-throughput backend services.",
+            "Compare state management strategies (local state vs global store vs context) and their memory trade-offs.",
+            "Explain the principles of RESTful API design, HTTP status codes, and cache control headers.",
+            "What is database normalization (1NF to 3NF) versus denormalization, and when would you choose denormalization?",
+            "Explain how SSL/TLS handshake works to secure client-server communication in modern web apps."
         ],
-        "Backend Engineer": [
-            "Explain how RESTful API idempotency differs across HTTP methods (GET, POST, PUT, DELETE).",
-            "How do database indexing and query optimization improve performance, and what are the write trade-offs?",
-            "Describe the architecture of microservices vs monolithic applications and how inter-service communication works.",
-            "How do you handle background task queues and asynchronous job processing in Python/FastAPI?",
-            "What techniques do you employ for rate limiting, security headers, and protection against injection attacks?"
+        "APPLICATION": [
+            "How would you refactor a monolithic React component suffering from unnecessary re-renders during state updates?",
+            "Walk through implementing role-based access control (RBAC) with JWT tokens and refresh token rotation.",
+            "How do you handle database indexing, query optimization, and slow query logging in PostgreSQL or MongoDB?",
+            "Describe how you would set up a CI/CD pipeline with automated testing, linting, and zero-downtime deployment.",
+            "How do you optimize bundle size, code splitting, and lazy loading in Next.js/React applications?"
         ],
-        "Fullstack Developer": [
-            "Walk through end-to-end data flow from a React frontend form submission to a MongoDB backend persistence layer.",
-            "How do you handle state synchronization between client UI and backend database state?",
-            "Explain CORS policy configuration and JWT authentication flow across separate frontend/backend domains.",
-            "Describe server-side rendering (SSR) vs static site generation (SSG) in modern web frameworks.",
-            "How do you approach database schema migrations and zero-downtime deployments?"
+        "CODING": [
+            "Write a function to find the longest substring without repeating characters in O(n) time complexity.",
+            "Implement a function that merges two sorted arrays in-place without using extra space."
+        ],
+        "CASE_STUDY": [
+            "Case Study: Design a rate limiter system for an API gateway that handles 100,000 requests per minute.",
+            "Case Study: Architect a resilient live video proctoring service that handles network drops without losing recording data.",
+            "Case Study: How would you migrate a legacy SQL database to MongoDB Atlas with zero downtime for live users?"
         ]
     }
 
-    role_questions = fallback_pool.get(job_role) or fallback_pool.get("Fullstack Developer")
-    index = (question_number - 1) % len(role_questions)
-    return role_questions[index]
+    pool = category_pools.get(category, category_pools["THEORY"])
+    idx = (question_number - 1) % len(pool)
+    return pool[idx]
 
 
 # ---------------------------------------------------------------------------

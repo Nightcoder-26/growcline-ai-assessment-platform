@@ -79,17 +79,31 @@ export default function DashboardPage() {
     setUser(u);
   }, [router]);
 
-  // Load recent results & resume status
+  // Load recent results & resume status (with auto-refetch on window focus)
   useEffect(() => {
     const u = getStoredUser();
     if (!u?.id) { setLoading(false); return; }
-    Promise.all([
-      getCandidateResults(u.id).catch(() => []),
-      getResumeStatus().catch(() => null),
-    ]).then(([resData, statusData]) => {
-      setResults(resData.slice(0, 5));
-      setResumeStatus(statusData);
-    }).finally(() => setLoading(false));
+
+    function fetchDashboardData() {
+      Promise.all([
+        getCandidateResults(u!.id).catch(() => []),
+        getResumeStatus().catch(() => null),
+      ]).then(([resData, statusData]) => {
+        setResults(resData);
+        setResumeStatus(statusData);
+      }).finally(() => setLoading(false));
+    }
+
+    fetchDashboardData();
+
+    const handleFocus = () => fetchDashboardData();
+    window.addEventListener("focus", handleFocus);
+    window.addEventListener("visibilitychange", handleFocus);
+
+    return () => {
+      window.removeEventListener("focus", handleFocus);
+      window.removeEventListener("visibilitychange", handleFocus);
+    };
   }, []);
 
   const firstName = user?.fullName?.split(" ")[0] ?? "Candidate";

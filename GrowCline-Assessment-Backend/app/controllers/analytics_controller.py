@@ -18,23 +18,13 @@ class AnalyticsController:
     def get_dashboard_get(user_id: Optional[str] = None) -> tuple[dict, int]:
         """
         GET /api/analytics/dashboard or /api/analytics/dashboard/<user_id>
-        Fetches dashboard analytics.
+        Fetches dashboard analytics — always computed live from assessment_results.
         """
         try:
             db = Database.get_db()
 
             if user_id:
-                # Check if a custom dashboard analytics document was saved
-                saved_doc = db.dashboard_analytics.find_one({"userId": user_id}, sort=[("updatedAt", -1)])
-                if not saved_doc:
-                    saved_doc = db.dashboard_analytics.find_one({"user_id": user_id}, sort=[("updatedAt", -1)])
-                if saved_doc:
-                    saved_doc["_id"] = str(saved_doc["_id"])
-                    return {
-                        "success": True,
-                        "data": saved_doc
-                    }, 200
-
+                # Always compute live — skip cached dashboard_analytics doc
                 res = AnalyticsService.generate_user_dashboard(user_id)
                 return res, res.get("status_code", 200)
 
