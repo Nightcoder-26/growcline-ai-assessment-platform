@@ -16,6 +16,7 @@ import {
 import {
   generateTechnicalQuestions,
   submitTechnicalAnswers,
+  getPersonalizedAssessmentPaper,
   type TechnicalQuestion,
   type AnswerRecord,
 } from "@/services/assessmentService";
@@ -23,8 +24,8 @@ import { getStoredToken } from "@/services/authService";
 
 type Stage = "LOADING" | "INSTRUCTIONS" | "IN_PROGRESS" | "SUBMITTING" | "COMPLETED" | "ERROR";
 
-const DURATION_SECONDS = 25 * 60;
-const N_QUESTIONS = 10;
+const DURATION_SECONDS = 40 * 60; // 40 minutes
+const N_QUESTIONS = 25;
 
 export default function TechnicalPage() {
   const router = useRouter();
@@ -45,7 +46,15 @@ export default function TechnicalPage() {
     try {
       setStage("LOADING");
       setError(null);
-      const qs = await generateTechnicalQuestions(N_QUESTIONS);
+      let qs: TechnicalQuestion[] = [];
+      try {
+        const paper = await getPersonalizedAssessmentPaper();
+        if (paper.technicalQuestions && paper.technicalQuestions.length > 0) {
+          qs = paper.technicalQuestions;
+        }
+      } catch {
+        qs = await generateTechnicalQuestions(N_QUESTIONS);
+      }
       if (!qs.length) {
         setError("No technical questions are available right now.");
         setStage("ERROR");

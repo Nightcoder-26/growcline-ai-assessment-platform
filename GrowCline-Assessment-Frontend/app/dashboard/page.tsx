@@ -20,6 +20,8 @@ import AppShell from "@/components/assessment/AppShell";
 import DashboardGuideBanner from "@/components/assessment/DashboardGuideBanner";
 import { getCandidateResults, type AssessmentResult } from "@/services/assessmentService";
 import { getStoredUser, getStoredToken } from "@/services/authService";
+import { getResumeStatus, type ResumeStatus } from "@/services/resumeService";
+import { Sparkles, FileCheck, Upload } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -29,29 +31,33 @@ interface AssessmentCategory {
   description: string;
   icon: React.ElementType;
   href: string;
+  badge?: string;
 }
 
 const CATEGORIES: AssessmentCategory[] = [
   {
     key:         "aptitude",
     label:       "Aptitude Assessment",
-    description: "Quantitative ability, logical reasoning, and verbal aptitude questions.",
+    description: "25 Questions — Quantitative, logical, and analytical reasoning.",
     icon:        BrainCircuit,
     href:        "/assessments/aptitude",
+    badge:       "25 Questions",
   },
   {
     key:         "technical",
     label:       "Technical Assessment",
-    description: "Technology-specific MCQs and scenario-based technical questions.",
+    description: "25 Questions — Personalized to your uploaded resume stack.",
     icon:        BookOpen,
     href:        "/assessments/technical",
+    badge:       "Based on resume",
   },
   {
     key:         "coding",
     label:       "Coding Assessment",
-    description: "Algorithmic problem-solving with a built-in code editor and test cases.",
+    description: "15 Problems — LeetCode-style algorithmic challenges.",
     icon:        Code2,
     href:        "/assessments/coding",
+    badge:       "Matched to skills",
   },
 ];
 
@@ -61,6 +67,7 @@ export default function DashboardPage() {
   const router = useRouter();
   const [user, setUser]       = useState<{ fullName: string; email: string; role: string } | null>(null);
   const [results, setResults] = useState<AssessmentResult[]>([]);
+  const [resumeStatus, setResumeStatus] = useState<ResumeStatus | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError]     = useState<string | null>(null);
 
@@ -72,14 +79,17 @@ export default function DashboardPage() {
     setUser(u);
   }, [router]);
 
-  // Load recent results
+  // Load recent results & resume status
   useEffect(() => {
     const u = getStoredUser();
     if (!u?.id) { setLoading(false); return; }
-    getCandidateResults(u.id)
-      .then((data) => setResults(data.slice(0, 5)))
-      .catch((err) => setError(err?.message ?? "Failed to load results"))
-      .finally(() => setLoading(false));
+    Promise.all([
+      getCandidateResults(u.id).catch(() => []),
+      getResumeStatus().catch(() => null),
+    ]).then(([resData, statusData]) => {
+      setResults(resData.slice(0, 5));
+      setResumeStatus(statusData);
+    }).finally(() => setLoading(false));
   }, []);
 
   const firstName = user?.fullName?.split(" ")[0] ?? "Candidate";
@@ -173,6 +183,63 @@ export default function DashboardPage() {
             Start Assessment <ArrowRight size={14} />
           </Link>
         </div>
+
+        {/* ── Resume Personalization Status Banner ──────────────────── */}
+        {resumeStatus?.hasResume ? (
+          <div className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm card-accent-blue">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-[#4096ff]/10 text-[#4096ff] flex items-center justify-center shrink-0">
+                <FileCheck size={20} />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-bold text-[#1E293B]">
+                    Resume Analyzed & Active
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-[#4096ff]/10 text-[#4096ff] border border-[#4096ff]/20">
+                    ✓ Profile Personalization Enabled
+                  </span>
+                </div>
+                <p className="text-[12px] text-[#64748B] mt-0.5">
+                  {resumeStatus.resumeFilename ? `File: ${resumeStatus.resumeFilename} • ` : ""}
+                  {resumeStatus.profileSummary?.topSkills && resumeStatus.profileSummary.topSkills.length > 0
+                    ? `Top Stack: ${resumeStatus.profileSummary.topSkills.join(", ")}`
+                    : "Personalized question generation active"}
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href="/resume-onboarding"
+              className="text-[12px] text-[#4096ff] hover:text-[#60a5fa] font-bold transition-colors shrink-0 flex items-center gap-1"
+            >
+              Update Resume <ArrowRight size={12} />
+            </Link>
+          </div>
+        ) : (
+          <div className="bg-white border border-amber-200 rounded-xl p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Upload size={20} />
+              </div>
+              <div>
+                <p className="text-[13px] font-bold text-[#1E293B]">
+                  Upload Your Resume for Personalized Assessments
+                </p>
+                <p className="text-[12px] text-[#64748B] mt-0.5">
+                  Upload your PDF/DOCX resume to generate custom 25 Aptitude, 25 Technical, and 15 Coding questions.
+                </p>
+              </div>
+            </div>
+
+            <Link
+              href="/resume-onboarding"
+              className="px-4 py-2 rounded-lg bg-[#4096ff] hover:bg-[#60a5fa] text-white text-[12px] font-bold transition-colors shrink-0 flex items-center gap-1"
+            >
+              Upload Resume <ArrowRight size={12} />
+            </Link>
+          </div>
+        )}
 
         {/* ── Performance Snapshot ─────────────────────────────────── */}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 animate-stagger">

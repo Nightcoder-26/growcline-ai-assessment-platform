@@ -35,6 +35,7 @@ from app.routes.interview_session_routes import (
     analytics_router as interview_session_analytics_router,
 )
 from app.routes.drive_routes import router as drive_router
+from app.routes.resume_routes import router as resume_router
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,7 @@ app.include_router(interview_router)
 app.include_router(interview_session_router)
 app.include_router(interview_session_analytics_router)
 app.include_router(drive_router)
+app.include_router(resume_router)
 
 
 # ── Local file uploads (fallback when S3 is not configured) ─────────────────

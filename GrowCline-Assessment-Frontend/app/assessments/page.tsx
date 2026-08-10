@@ -12,94 +12,130 @@ import AppShell from "@/components/assessment/AppShell";
 import { AssessmentCard } from "@/components/assessment/shared";
 import { getStoredToken } from "@/services/authService";
 
+import { useState } from "react";
+import { Sparkles, FileCheck, AlertCircle } from "lucide-react";
+import { getResumeStatus, generatePersonalizedAssessment } from "@/services/resumeService";
+
 const ASSESSMENTS = [
   {
     key:           "aptitude",
     title:         "Aptitude Assessment",
-    description:   "Test your quantitative ability, logical reasoning, and verbal aptitude. Questions span mathematics, pattern recognition, and language comprehension.",
+    description:   "25 Questions covering quantitative ability, logical reasoning, analytical thinking, and verbal comprehension.",
     icon:          BrainCircuit,
     href:          "/assessments/aptitude",
-    questionCount: 10,
-    duration:      20,
+    questionCount: 25,
+    duration:      35,
+    tag:           "General Reasoning",
   },
   {
     key:           "technical",
     title:         "Technical Assessment",
-    description:   "Evaluate your domain knowledge with technology-specific MCQs. Covers programming concepts, software engineering, and computer science fundamentals.",
+    description:   "25 Questions personalized strictly to your resume stack, testing architecture, tradeoffs, and scenario-based knowledge.",
     icon:          BookOpen,
     href:          "/assessments/technical",
-    questionCount: 10,
-    duration:      25,
+    questionCount: 25,
+    duration:      40,
+    tag:           "Personalized to Resume",
   },
   {
     key:           "coding",
     title:         "Coding Assessment",
-    description:   "Solve algorithmic problems in an integrated code editor. Submit solutions and view test case results to demonstrate your problem-solving ability.",
+    description:   "15 LeetCode-style coding problems matched to your programming background and experience level.",
     icon:          Code2,
     href:          "/assessments/coding",
-    questionCount: 1,
-    duration:      30,
+    questionCount: 15,
+    duration:      60,
+    tag:           "Matched to Skills",
   },
 ] as const;
 
 const INFO_CARDS = [
   {
-    label:  "Instant Results",
-    desc:   "Scores calculated and displayed immediately after submission.",
+    label:  "Resume Personalization",
+    desc:   "Questions adapt dynamically based on your uploaded resume.",
   },
   {
-    label:  "Saved Automatically",
-    desc:   "Your results are saved to your profile for review anytime.",
+    label:  "Persistent Attempts",
+    desc:   "Questions remain stable across page refreshes.",
   },
   {
-    label:  "Review Performance",
-    desc:   "Check detailed analytics in the Analytics Dashboard.",
+    label:  "Instant Feedback",
+    desc:   "Scores and analytics calculated immediately after submission.",
   },
 ];
 
 export default function AssessmentsPage() {
   const router = useRouter();
+  const [checking, setChecking] = useState(true);
+  const [hasResume, setHasResume] = useState(true);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     const token = getStoredToken();
-    if (!token) router.replace("/login");
+    if (!token) { router.replace("/login"); return; }
+
+    getResumeStatus()
+      .then((status) => {
+        setHasResume(status.hasResume);
+        if (!status.hasResume) {
+          router.replace("/resume-onboarding");
+        }
+      })
+      .catch(() => {})
+      .finally(() => setChecking(false));
   }, [router]);
+
+  const handleStart = async (href: string) => {
+    setGenerating(true);
+    try {
+      await generatePersonalizedAssessment();
+      router.push(href);
+    } catch (err) {
+      router.push(href);
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  if (checking) {
+    return (
+      <AppShell title="Assessment Hub" subtitle="Verifying your resume profile...">
+        <div className="max-w-4xl mx-auto py-20 text-center">
+          <div className="w-8 h-8 border-3 border-[#4096ff] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+          <p className="text-[13px] text-[#64748B]">Preparing your personalized assessment hub...</p>
+        </div>
+      </AppShell>
+    );
+  }
 
   return (
     <AppShell
       title="Assessment Hub"
-      subtitle="Choose an assessment to begin"
+      subtitle="Choose a personalized assessment to begin"
     >
       <div className="max-w-4xl mx-auto space-y-7">
 
         {/* Page intro */}
-        <div
-          className="rounded-xl px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white border border-[rgba(30,41,59,0.10)] shadow-sm"
-        >
+        <div className="rounded-xl px-6 py-5 flex flex-col sm:flex-row items-start sm:items-center gap-4 bg-white border border-[rgba(30,41,59,0.10)] shadow-sm">
           <div className="flex-1">
-            <div className="flex items-center gap-2 mb-2">
-              <div className="w-1 h-4 rounded-full bg-[#4096ff]" />
+            <div className="flex items-center gap-2 mb-1.5">
+              <Sparkles size={16} className="text-[#4096ff]" />
               <h2 className="text-[15px] font-bold text-[#1E293B]">
-                Select Your Assessment
+                Personalized Assessment Suite
               </h2>
             </div>
             <p className="text-[13px] text-[#64748B] leading-relaxed">
-              Each assessment is independently timed and scored. You can attempt them in any order.
-              Results are saved automatically after submission.
+              Your assessment contains <strong className="text-[#1E293B]">25 Aptitude</strong>, <strong className="text-[#1E293B]">25 Technical</strong>, and <strong className="text-[#1E293B]">15 Coding</strong> problems generated specifically for your skill profile. Questions remain stable during your attempt.
             </p>
           </div>
-          <div className="flex gap-4 text-[12px] text-[#64748B] shrink-0">
-            <span
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold bg-[#4096ff]/10 text-[#4096ff] border border-[#4096ff]/20"
-            >
+          <div className="flex gap-3 text-[12px] shrink-0">
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold bg-[#4096ff]/10 text-[#4096ff] border border-[#4096ff]/20">
               <Clock size={12} />
-              Auto-timed
+              Timed Attempts
             </span>
-            <span
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold bg-[#1E293B]/10 text-[#1E293B] border border-[#1E293B]/20"
-            >
+            <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-semibold bg-[#1E293B]/10 text-[#1E293B] border border-[#1E293B]/20">
               <Zap size={12} />
-              Instant scoring
+              Instant Evaluation
             </span>
           </div>
         </div>
@@ -109,16 +145,17 @@ export default function AssessmentsPage() {
           {ASSESSMENTS.map((a) => {
             const Icon = a.icon;
             return (
-              <AssessmentCard
-                key={a.key}
-                title={a.title}
-                description={a.description}
-                icon={<Icon size={18} />}
-                status="not_started"
-                questionCount={a.questionCount}
-                duration={a.duration}
-                onAction={() => router.push(a.href)}
-              />
+              <div key={a.key} className="relative flex">
+                <AssessmentCard
+                  title={a.title}
+                  description={a.description}
+                  icon={<Icon size={18} />}
+                  status="not_started"
+                  questionCount={a.questionCount}
+                  duration={a.duration}
+                  onAction={() => handleStart(a.href)}
+                />
+              </div>
             );
           })}
         </div>
@@ -145,3 +182,4 @@ export default function AssessmentsPage() {
     </AppShell>
   );
 }
+

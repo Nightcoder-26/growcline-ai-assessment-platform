@@ -13,6 +13,7 @@ import {
   AlertCircle, Globe2,
 } from "lucide-react";
 import { login } from "@/services/authService";
+import { getResumeStatus } from "@/services/resumeService";
 
 // ─── Validation ────────────────────────────────────────────────────────────────
 interface FormErrors {
@@ -155,8 +156,17 @@ export default function LoginForm() {
     setLoading(true);
     try {
       await login({ email: email.trim(), password });
-      setSuccessMsg("Login successful! Redirecting…");
-      setTimeout(() => router.push("/dashboard"), 800);
+      setSuccessMsg("Login successful! Checking resume...");
+      try {
+        const status = await getResumeStatus();
+        if (status.hasResume) {
+          router.push("/dashboard");
+        } else {
+          router.push("/resume-onboarding");
+        }
+      } catch {
+        router.push("/dashboard");
+      }
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Invalid credentials. Please try again.";

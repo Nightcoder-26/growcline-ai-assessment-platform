@@ -16,6 +16,7 @@ import {
 import {
   generateAptitudeQuestions,
   submitAptitudeAnswers,
+  getPersonalizedAssessmentPaper,
   type AptitudeQuestion,
   type AnswerRecord,
 } from "@/services/assessmentService";
@@ -23,8 +24,8 @@ import { getStoredToken, getStoredUser } from "@/services/authService";
 
 type Stage = "LOADING" | "INSTRUCTIONS" | "IN_PROGRESS" | "SUBMITTING" | "COMPLETED" | "ERROR";
 
-const DURATION_SECONDS = 20 * 60; // 20 minutes
-const N_QUESTIONS = 10;
+const DURATION_SECONDS = 35 * 60; // 35 minutes
+const N_QUESTIONS = 25;
 
 export default function AptitudePage() {
   const router = useRouter();
@@ -48,7 +49,15 @@ export default function AptitudePage() {
     try {
       setStage("LOADING");
       setError(null);
-      const qs = await generateAptitudeQuestions(N_QUESTIONS);
+      let qs: AptitudeQuestion[] = [];
+      try {
+        const paper = await getPersonalizedAssessmentPaper();
+        if (paper.aptitudeQuestions && paper.aptitudeQuestions.length > 0) {
+          qs = paper.aptitudeQuestions;
+        }
+      } catch {
+        qs = await generateAptitudeQuestions(N_QUESTIONS);
+      }
       if (!qs.length) {
         setError("No aptitude questions are available right now.");
         setStage("ERROR");

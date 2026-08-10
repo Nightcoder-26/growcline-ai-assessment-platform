@@ -258,3 +258,33 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     return null;
   }
 }
+
+// ---------------------------------------------------------------------------
+// Personalized Assessment Paper Fetching (Stable, Non-repeating)
+// ---------------------------------------------------------------------------
+
+export async function getPersonalizedAssessmentPaper(): Promise<{
+  assessmentId: string;
+  aptitudeQuestions: AptitudeQuestion[];
+  technicalQuestions: TechnicalQuestion[];
+  codingQuestions: CodingQuestion[];
+}> {
+  const { data: res } = await apiClient.post("/api/resume/generate-assessment");
+  const dataObj = res.data ?? res;
+  const assessmentId = dataObj.assessmentId;
+
+  if (!assessmentId) {
+    throw new Error("Unable to locate personalized assessment.");
+  }
+
+  const { data: paperRes } = await apiClient.post(`/api/assessment/${assessmentId}/start`);
+  const paper = paperRes.data ?? paperRes;
+
+  return {
+    assessmentId,
+    aptitudeQuestions: paper.aptitudeQuestionsList ?? [],
+    technicalQuestions: paper.technicalQuestionsList ?? [],
+    codingQuestions: paper.codingQuestionsList ?? [],
+  };
+}
+
