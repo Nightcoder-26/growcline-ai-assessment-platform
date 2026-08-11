@@ -59,7 +59,7 @@ async def get_auth_url(
 ):
     """Generate the Google OAuth 2.0 authorization URL."""
     c_id = client_id or Config.GOOGLE_CLIENT_ID or os.environ.get("GOOGLE_CLIENT_ID", "")
-    r_uri = redirect_uri or Config.GOOGLE_REDIRECT_URI or "http://localhost:5001/api/drive/callback"
+    r_uri = redirect_uri or Config.GOOGLE_REDIRECT_URI or "http://localhost:5000/api/drive/callback"
 
     if not c_id:
         raise HTTPException(
@@ -107,7 +107,7 @@ async def oauth_callback(
 
     c_id = client_id or Config.GOOGLE_CLIENT_ID or os.environ.get("GOOGLE_CLIENT_ID", "")
     c_secret = client_secret or Config.GOOGLE_CLIENT_SECRET or os.environ.get("GOOGLE_CLIENT_SECRET", "")
-    r_uri = redirect_uri or Config.GOOGLE_REDIRECT_URI or "http://localhost:5001/api/drive/callback"
+    r_uri = redirect_uri or Config.GOOGLE_REDIRECT_URI or "http://localhost:5000/api/drive/callback"
 
     if not c_id or not c_secret:
         return HTMLResponse(

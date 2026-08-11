@@ -22,6 +22,7 @@ interface QuestionPanelProps {
   answered: boolean[];
   loading?: boolean;
   canGoPrev?: boolean;
+  isTimeUp?: boolean;
   onPrev: () => void;
   onNext: () => void;
   onJump: (i: number) => void;
@@ -37,6 +38,7 @@ export function QuestionPanel({
   answered,
   loading = false,
   canGoPrev = false,
+  isTimeUp = false,
   onPrev,
   onNext,
   onJump,
@@ -93,13 +95,29 @@ export function QuestionPanel({
 
       {/* Optional text-answer input for when the candidate types their answer */}
       {onAnswerChange && (
-        <textarea
-          className="mt-5 w-full rounded-2xl border border-slate-700 bg-[#0F172A] p-4 text-sm text-white placeholder-slate-500 resize-none focus:outline-none focus:border-[#4096ff] transition-colors"
-          rows={4}
-          placeholder="Type your answer here (optional — spoken answer is also captured)…"
-          value={candidateAnswer}
-          onChange={(e) => onAnswerChange(e.target.value)}
-        />
+        <div className="relative mt-5">
+          <textarea
+            className={`w-full rounded-2xl border bg-[#0F172A] p-4 text-sm text-white placeholder-slate-500 resize-none focus:outline-none transition-colors ${
+              isTimeUp
+                ? "border-red-500/50 opacity-60 cursor-not-allowed"
+                : "border-slate-700 focus:border-[#4096ff]"
+            }`}
+            rows={4}
+            disabled={isTimeUp}
+            placeholder={
+              isTimeUp
+                ? "⏰ 2-Minute Time's Up! Answer locked. Advancing to next question..."
+                : "Type your answer here (optional — spoken answer is captured in continuous video)…"
+            }
+            value={candidateAnswer}
+            onChange={(e) => onAnswerChange(e.target.value)}
+          />
+          {isTimeUp && (
+            <div className="absolute top-3 right-3 rounded-lg bg-red-500/20 px-2.5 py-1 text-xs font-bold text-red-400 border border-red-500/30">
+              Locked (2 Min Up)
+            </div>
+          )}
+        </div>
       )}
 
       {/* Progress dots */}

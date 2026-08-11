@@ -15,7 +15,7 @@ class Config:
 
     # Server Configuration
     HOST: str = os.getenv("HOST", "0.0.0.0")
-    PORT: int = int(os.getenv("PORT", 5001))
+    PORT: int = int(os.getenv("PORT", 5000))
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
     ALLOWED_ORIGINS: list = [
         origin.strip()
@@ -48,7 +48,7 @@ class Config:
     # Google OAuth 2.0 Credentials (User Account Storage)
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
-    GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:5001/api/drive/callback")
+    GOOGLE_REDIRECT_URI: str = os.getenv("GOOGLE_REDIRECT_URI", "http://localhost:5000/api/drive/callback")
     GOOGLE_TOKEN_FILE: str = os.getenv("GOOGLE_TOKEN_FILE", "credentials/google_oauth_token.json")
 
     # Recording Upload Limits

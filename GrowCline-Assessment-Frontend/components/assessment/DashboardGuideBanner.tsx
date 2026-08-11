@@ -118,11 +118,10 @@ export default function DashboardGuideBanner() {
               <button
                 key={s.id}
                 onClick={() => setCurrentIdx(idx)}
-                className={`px-3 py-1 rounded-lg text-[11.5px] font-semibold transition-all ${
-                  idx === currentIdx
+                className={`px-3 py-1 rounded-lg text-[11.5px] font-semibold transition-all ${idx === currentIdx
                     ? "bg-[#4096ff] text-white shadow-sm"
                     : "bg-[#E2E8F0]/60 text-[#64748B] hover:bg-[#E2E8F0] hover:text-[#1E293B]"
-                }`}
+                  }`}
               >
                 Guide 0{idx + 1}
               </button>
@@ -205,10 +204,6 @@ export default function DashboardGuideBanner() {
               className="object-cover transition-transform duration-500 group-hover:scale-105"
               priority
             />
-          </div>
-          <div className="absolute bottom-2 right-2 px-2.5 py-1 rounded-md bg-[#1E293B]/80 backdrop-blur-md text-white text-[10px] font-medium flex items-center gap-1 border border-white/10">
-            <Sparkles size={10} className="text-[#4096ff]" />
-            AI Generated Illustration
           </div>
         </div>
       </div>

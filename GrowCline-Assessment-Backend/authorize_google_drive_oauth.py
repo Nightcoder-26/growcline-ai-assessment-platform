@@ -81,7 +81,7 @@ def main():
 
     client_id = Config.GOOGLE_CLIENT_ID or os.environ.get("GOOGLE_CLIENT_ID", "")
     client_secret = Config.GOOGLE_CLIENT_SECRET or os.environ.get("GOOGLE_CLIENT_SECRET", "")
-    redirect_uri = Config.GOOGLE_REDIRECT_URI or os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:5001/api/drive/callback")
+    redirect_uri = Config.GOOGLE_REDIRECT_URI or os.environ.get("GOOGLE_REDIRECT_URI", "http://localhost:5000/api/drive/callback")
 
     if not client_id:
         client_id = input("Enter GOOGLE_CLIENT_ID: ").strip()

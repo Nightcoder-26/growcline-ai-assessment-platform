@@ -196,14 +196,23 @@ export function InterviewStudio() {
 
   // ── Per-question 2-minute countdown ──────────────────────────────────────
   // Resets on each new question; auto-advances when it hits 0.
+  const isAutoAdvancingRef = useRef(false);
+
   useEffect(() => {
-    if (!recording || !currentQuestion) return;
+    if (!recording || !currentQuestion || historyIndex !== -1) return;
     setQuestionTimer(QUESTION_SECONDS);
     if (questionTimerRef.current) clearInterval(questionTimerRef.current);
     questionTimerRef.current = setInterval(() => {
       setQuestionTimer((prev) => {
         if (prev <= 1) {
           clearInterval(questionTimerRef.current!);
+          if (!isAutoAdvancingRef.current) {
+            isAutoAdvancingRef.current = true;
+            showToast(`Time's up for Question ${currentQuestion.questionNumber}! Submitting answer & advancing…`, true);
+            handleSubmitAndNext().finally(() => {
+              isAutoAdvancingRef.current = false;
+            });
+          }
           return 0;
         }
         return prev - 1;
@@ -213,7 +222,7 @@ export function InterviewStudio() {
       if (questionTimerRef.current) clearInterval(questionTimerRef.current);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recording, currentQuestion?.id]);
+  }, [recording, currentQuestion?.id, historyIndex]);
 
   // ── Proctoring lifecycle ────────────────────────────────────────────────────
   // Proctoring is activated ONLY when the user presses Record and deactivated
@@ -350,7 +359,7 @@ export function InterviewStudio() {
       return;
     }
 
-    const answer = candidateAnswerText.trim() || "No spoken answer recorded.";
+    const answer = candidateAnswerText.trim() || "No response provided within 2-minute time limit.";
     try {
       const eval_ = await submitAnswer(interview.id, currentQuestion.id, answer);
       setAnsweredIds((prev) => new Set([...prev, currentQuestion.id]));
@@ -359,8 +368,10 @@ export function InterviewStudio() {
       setQuestionHistory((prev) => [...prev, currentQuestion]);
 
       if (eval_.interviewComplete) {
-        showToast("Interview complete! Generating analytics report…");
+        showToast("Interview questions complete! Stopping continuous recording…");
         deactivateProctoring();
+        setRecording(false);
+        stopMediaRecorder();
         try {
           await apiClient.post(`/api/interview/end/${interview.id}`);
         } catch {
@@ -375,27 +386,20 @@ export function InterviewStudio() {
         });
         freezeSession();
         setSessionEnded(true);
-        setTimeout(() => {
-          router.push(`/interview-analytics?interviewId=${interview.id}`);
-        }, 1_500);
         return;
       }
 
       await getNextQuestion(interview.id);
-      setRecording(false);
-      setPaused(false);
-      setElapsed(0);
+      // Continuous recording mode: DO NOT stop recording or clear video blob!
       setCandidateAnswerText("");
-      clearBlobUrl();
     } catch (err) {
       const msg = err instanceof Error ? err.message : "Failed to submit answer.";
       showToast(msg, true);
     }
   }, [
     interview, currentQuestion, candidateAnswerText, historyIndex,
-    submitAnswer, endInterview, getNextQuestion,
-    clearBlobUrl, router, elapsed,
-    updateSession, freezeSession, deactivateProctoring,
+    submitAnswer, endInterview, getNextQuestion, stopMediaRecorder,
+    showToast, elapsed, updateSession, freezeSession, deactivateProctoring,
   ]);
 
   // ── Go to previous question (browse history) ──────────────────────────────
@@ -477,12 +481,60 @@ export function InterviewStudio() {
   if (sessionEnded) {
     return (
       <main className="min-h-screen bg-[#F8FAFC] flex items-center justify-center p-8">
-        <div className="max-w-lg w-full rounded-[28px] border border-white/10 bg-[#1E293B] p-8 text-center space-y-4 shadow-2xl">
+        <div className="max-w-xl w-full rounded-[28px] border border-white/10 bg-[#1E293B] p-8 text-center space-y-6 shadow-2xl backdrop-blur-xl">
           <div className="text-5xl">🎉</div>
-          <h2 className="text-2xl font-bold text-white">Interview Complete!</h2>
-          <p className="text-slate-400">Redirecting to your Analytics Report…</p>
-          <div className="flex justify-center mt-4">
-            <div className="w-8 h-8 rounded-full border-4 border-[#4096ff] border-t-transparent animate-spin" />
+          <div>
+            <h2 className="text-2xl font-bold text-white">Interview Complete!</h2>
+            <p className="text-slate-400 text-sm mt-1">
+              Your single continuous video recording for all questions has been finalized.
+            </p>
+          </div>
+
+          {/* Upload Status Card */}
+          <div className="rounded-2xl border border-slate-700 bg-[#0F172A] p-5 text-left space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-semibold text-white">Full Interview Continuous Recording</p>
+                <p className="text-xs text-slate-400 mt-0.5">Total Video Length: {formatTime(elapsed)}</p>
+              </div>
+              <span className={`text-xs px-3 py-1 rounded-full font-bold ${
+                uploadStatus === "done"
+                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  : uploadStatus === "uploading"
+                  ? "bg-amber-500/20 text-amber-400 border border-amber-500/30 animate-pulse"
+                  : "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+              }`}>
+                {uploadStatus === "done" ? "Uploaded to Cloud ✅" : uploadStatus === "uploading" ? "Uploading…" : "Ready for Upload"}
+              </span>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={handleUpload}
+                disabled={!mediaBlobUrl || uploadStatus === "uploading" || uploadStatus === "done"}
+                className="flex-1 flex items-center justify-center gap-2 rounded-xl bg-[#4096ff] py-3 text-sm font-semibold text-white hover:bg-[#2f86ff] transition disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
+              >
+                {uploadStatus === "uploading" ? (
+                  <>
+                    <div className="w-4 h-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                    Uploading Recording…
+                  </>
+                ) : uploadStatus === "done" ? (
+                  "✅ Video Uploaded Successfully"
+                ) : (
+                  "📤 Upload Recording Now"
+                )}
+              </button>
+            </div>
+          </div>
+
+          <div className="pt-2">
+            <button
+              onClick={() => router.push(`/interview-analytics?interviewId=${interview?.id}`)}
+              className="w-full flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3.5 text-sm font-bold text-white hover:bg-emerald-500 transition shadow-lg"
+            >
+              View Analytics Report →
+            </button>
           </div>
         </div>
       </main>
@@ -635,6 +687,7 @@ export function InterviewStudio() {
                   answered={answeredArray}
                   loading={loading && historyIndex === -1}
                   canGoPrev={canGoPrev}
+                  isTimeUp={recording && historyIndex === -1 && questionTimer <= 0}
                   onPrev={handlePrev}
                   onNext={handleSubmitAndNext}
                   onJump={() => {}}
