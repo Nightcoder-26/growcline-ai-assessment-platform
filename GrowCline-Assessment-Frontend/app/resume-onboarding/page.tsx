@@ -184,6 +184,29 @@ export default function ResumeOnboardingPage() {
           </div>
         </div>
 
+        {/* ── Step Tracker ───────────────────────────────────────────── */}
+        {!checkingStatus && (
+          <div className="grid grid-cols-4 gap-3 bg-white border border-[rgba(30,41,59,0.08)] rounded-xl p-4 shadow-sm">
+            {[
+              { step: 1, label: "Account", active: false, done: true },
+              { step: 2, label: "Resume", active: !profile && !hasExistingResume && !uploading, done: !!profile || hasExistingResume || !!file },
+              { step: 3, label: "Analysis", active: uploading, done: !!profile },
+              { step: 4, label: "Ready", active: !!profile, done: !!profile },
+            ].map((s) => (
+              <div key={s.step} className="flex flex-col gap-1.5">
+                <div className={`h-1.5 rounded-full transition-all duration-300 ${
+                  s.done ? "bg-[#4096ff]" : s.active ? "bg-[#4096ff]/50 animate-pulse" : "bg-slate-200"
+                }`} />
+                <span className={`text-[10.5px] font-bold tracking-tight ${
+                  s.done || s.active ? "text-[#1E293B]" : "text-slate-400"
+                }`}>
+                  Step {s.step} — {s.label}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
         {/* ── Main Content Area ─────────────────────────────────────── */}
         {checkingStatus ? (
           <div className="bg-white border border-[rgba(30,41,59,0.10)] rounded-2xl p-12 text-center">
@@ -273,6 +296,60 @@ export default function ResumeOnboardingPage() {
                     >
                       {db}
                     </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {profile.tools && profile.tools.length > 0 && (
+              <div>
+                <p className="text-[12px] font-bold text-[#1E293B] mb-2">Developer Tools</p>
+                <div className="flex flex-wrap gap-2">
+                  {profile.tools.map((t) => (
+                    <span
+                      key={t}
+                      className="px-3 py-1 rounded-lg text-[12px] font-semibold bg-[#F8FAFC] text-[#475569] border border-slate-200"
+                    >
+                      {t}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {profile.domains && profile.domains.length > 0 && (
+              <div>
+                <p className="text-[12px] font-bold text-[#1E293B] mb-2">Specialized Domains</p>
+                <div className="flex flex-wrap gap-2">
+                  {profile.domains.map((d) => (
+                    <span
+                      key={d}
+                      className="px-3 py-1 rounded-lg text-[12px] font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200"
+                    >
+                      {d}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {profile.projects && profile.projects.length > 0 && (
+              <div>
+                <p className="text-[12px] font-bold text-[#1E293B] mb-2">Notable Projects</p>
+                <div className="space-y-2">
+                  {profile.projects.map((proj, pIdx) => (
+                    <div key={pIdx} className="p-3 rounded-lg bg-slate-50 border border-slate-200/60">
+                      <p className="text-[13px] font-bold text-[#1E293B]">{proj.name}</p>
+                      {proj.technologies && proj.technologies.length > 0 && (
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {proj.technologies.map((t) => (
+                            <span key={t} className="px-2 py-0.5 rounded bg-white text-[11px] text-[#64748B] border border-slate-200">
+                              {t}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>

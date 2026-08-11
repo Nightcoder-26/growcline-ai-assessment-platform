@@ -115,6 +115,9 @@ interface QuestionCardProps {
   options: string[];
   selectedAnswer: string | null;
   onSelect: (answer: string) => void;
+  marked?: boolean;
+  onToggleMark?: () => void;
+  autosaveState?: "idle" | "saving" | "saved";
 }
 
 export function QuestionCard({
@@ -124,14 +127,47 @@ export function QuestionCard({
   options,
   selectedAnswer,
   onSelect,
+  marked = false,
+  onToggleMark,
+  autosaveState = "idle",
 }: QuestionCardProps) {
   return (
     <div className="bg-white border border-[rgba(30,41,59,0.10)] rounded-xl p-6 shadow-sm">
       {/* Question header */}
-      <div className="flex items-center justify-between mb-4">
+      <div className="flex items-center justify-between mb-4 border-b border-slate-100 pb-3">
         <span className="text-[11.5px] font-bold text-[#4096ff] uppercase tracking-widest px-2.5 py-1 rounded-md border border-[#4096ff]/20 bg-[#4096ff]/10">
           Question {questionNumber} of {totalQuestions}
         </span>
+        <div className="flex items-center gap-3">
+          {autosaveState !== "idle" && (
+            <span className="text-[11px] text-[#94A3B8] font-medium flex items-center gap-1">
+              {autosaveState === "saving" ? (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
+                  Saved
+                </>
+              )}
+            </span>
+          )}
+          {onToggleMark && (
+            <button
+              onClick={onToggleMark}
+              aria-label="Mark for review"
+              className={`p-1.5 rounded-lg border transition-all ${
+                marked
+                  ? "bg-amber-500/10 border-amber-500/30 text-amber-500 font-bold"
+                  : "bg-white border-slate-200 text-slate-400 hover:text-slate-600 hover:bg-slate-50"
+              }`}
+            >
+              ★ Review
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Question text */}
@@ -449,3 +485,82 @@ export function ScoreRing({ percentage, size = 80 }: ScoreRingProps) {
 }
 
 export { CheckCircle2, XCircle };
+
+// ─── SkeletonCard ────────────────────────────────────────────────────────────
+
+export function SkeletonCard() {
+  return (
+    <div className="shimmer-card flex flex-col gap-3">
+      <div className="shimmer-element h-6 w-1/3" />
+      <div className="shimmer-element h-4 w-full" />
+      <div className="shimmer-element h-4 w-5/6" />
+      <div className="shimmer-element h-8 w-1/4 mt-2" />
+    </div>
+  );
+}
+
+// ─── StatusBadge ─────────────────────────────────────────────────────────────
+
+interface StatusBadgeProps {
+  status: "not_started" | "in_progress" | "completed" | "expired" | string;
+}
+
+export function StatusBadge({ status }: StatusBadgeProps) {
+  const norm = (status || "").toLowerCase().replace("_", "-");
+  let label = status;
+  let bgClass = "badge-status-not-started";
+
+  if (norm === "not-started" || norm === "not_started") {
+    label = "Not Started";
+    bgClass = "badge-status-not-started";
+  } else if (norm === "in-progress" || norm === "in_progress") {
+    label = "In Progress";
+    bgClass = "badge-status-in-progress";
+  } else if (norm === "completed" || norm === "passed" || norm === "failed") {
+    label = norm === "completed" ? "Completed" : status;
+    bgClass = "badge-status-completed";
+  } else if (norm === "expired") {
+    label = "Expired";
+    bgClass = "badge-status-expired";
+  }
+
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] font-semibold border ${bgClass}`}>
+      {label}
+    </span>
+  );
+}
+
+// ─── ResumeSkillTags ─────────────────────────────────────────────────────────
+
+interface ResumeSkillTagsProps {
+  skills: string[];
+  maxToShow?: number;
+}
+
+export function ResumeSkillTags({ skills, maxToShow = 6 }: ResumeSkillTagsProps) {
+  if (!skills || skills.length === 0) {
+    return <span className="text-[12px] text-[#94A3B8]">No tech stack detected.</span>;
+  }
+
+  const visible = skills.slice(0, maxToShow);
+  const extra = skills.length - maxToShow;
+
+  return (
+    <div className="flex flex-wrap gap-1.5">
+      {visible.map((tag) => (
+        <span
+          key={tag}
+          className="px-2 py-0.5 rounded-md bg-[#4096ff]/10 border border-[#4096ff]/20 text-[#4096ff] text-[11.5px] font-medium"
+        >
+          {tag}
+        </span>
+      ))}
+      {extra > 0 && (
+        <span className="px-2 py-0.5 rounded-md bg-slate-100 border border-slate-200 text-[#64748B] text-[11.5px] font-medium">
+          +{extra} more
+        </span>
+      )}
+    </div>
+  );
+}

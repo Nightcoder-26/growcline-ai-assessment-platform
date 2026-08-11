@@ -52,6 +52,19 @@ export default function ResultsPage() {
     return m > 0 ? `${m}m ${s}s` : `${s}s`;
   }
 
+  /** Derive meaningful assessment type label from which section scores are populated */
+  function getAssessmentTypeLabel(r: AssessmentResult): string {
+    const hasApt  = (r.aptitudeScore  ?? 0) > 0;
+    const hasTech = (r.technicalScore ?? 0) > 0;
+    const hasCode = (r.codingScore    ?? 0) > 0;
+    const count   = [hasApt, hasTech, hasCode].filter(Boolean).length;
+    if (count >= 2) return "Full Assessment";
+    if (hasApt)    return "Aptitude Assessment";
+    if (hasTech)   return "Technical Assessment";
+    if (hasCode)   return "Coding Assessment";
+    return "Assessment";
+  }
+
   function toggleExpand(id: string) {
     setExpanded((prev) => (prev === id ? null : id));
   }
@@ -128,7 +141,7 @@ export default function ResultsPage() {
                       <ScoreRing percentage={pct} size={52} />
                       <div>
                         <p className="text-[13.5px] font-bold text-[#1E293B]">
-                          Assessment Result
+                          {getAssessmentTypeLabel(r)}
                         </p>
                         <p className="text-[11px] text-[#94A3B8] flex items-center gap-1.5 mt-0.5">
                           <Clock size={10} />

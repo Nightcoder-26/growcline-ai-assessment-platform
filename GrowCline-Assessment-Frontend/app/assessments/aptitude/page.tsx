@@ -146,7 +146,7 @@ export default function AptitudePage() {
               <ul className="space-y-2.5">
                 {[
                   `This test contains ${questions.length} multiple-choice questions.`,
-                  "You have 20 minutes to complete the assessment.",
+                  "You have 35 minutes to complete the assessment.",
                   "Each question has exactly one correct answer.",
                   "You can navigate between questions freely using the question panel.",
                   "Unanswered questions will be marked as incorrect.",
@@ -257,6 +257,12 @@ export default function AptitudePage() {
               className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-[#4096ff] hover:bg-[#60a5fa] text-white text-[13.5px] font-semibold transition-all"
             >
               <Trophy size={14} /> View All Results
+            </button>
+            <button
+              onClick={() => router.push("/analytics")}
+              className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-white text-[13.5px] font-semibold transition-all"
+            >
+              View Analytics
             </button>
           </div>
         </div>

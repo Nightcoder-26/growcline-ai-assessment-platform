@@ -269,6 +269,12 @@ export default function CodingPage() {
             >
               <Trophy size={14} /> View All Results
             </button>
+            <button
+              onClick={() => router.push("/analytics")}
+              className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-white text-[13.5px] font-semibold transition-all"
+            >
+              View Analytics
+            </button>
           </div>
         </div>
       </AppShell>

@@ -122,7 +122,7 @@ export default function TechnicalPage() {
               <div>
                 <h2 className="text-[17px] font-bold text-[#1E293B]">Technical Assessment</h2>
                 <p className="text-[12.5px] text-[#64748B] mt-0.5">
-                  {questions.length} questions · 25 minutes
+                  {questions.length} questions · 40 minutes
                 </p>
               </div>
             </div>
@@ -132,7 +132,7 @@ export default function TechnicalPage() {
               <ul className="space-y-2.5">
                 {[
                   `This test contains ${questions.length} technology-specific questions.`,
-                  "You have 25 minutes to complete the assessment.",
+                  "You have 40 minutes to complete the assessment.",
                   "Questions cover programming, software engineering, and CS fundamentals.",
                   "Navigate freely between questions using the question panel.",
                   "Unanswered questions receive no marks.",
@@ -214,6 +214,12 @@ export default function TechnicalPage() {
               className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-[#4096ff] hover:bg-[#60a5fa] text-white text-[13.5px] font-semibold transition-all"
             >
               <Trophy size={14} /> View All Results
+            </button>
+            <button
+              onClick={() => router.push("/analytics")}
+              className="flex-1 flex items-center justify-center gap-2 h-11 rounded-xl bg-[#1E293B] hover:bg-[#334155] text-white text-[13.5px] font-semibold transition-all"
+            >
+              View Analytics
             </button>
           </div>
         </div>

@@ -14,14 +14,14 @@ import {
   BrainCircuit, Code2, BookOpen, Video,
   ArrowRight, Trophy, TrendingUp, Target,
   Loader2, Clock, CheckCircle2, AlertCircle,
-  Zap,
+  Zap, Sparkles, FileCheck, Upload
 } from "lucide-react";
 import AppShell from "@/components/assessment/AppShell";
 import DashboardGuideBanner from "@/components/assessment/DashboardGuideBanner";
 import { getCandidateResults, type AssessmentResult } from "@/services/assessmentService";
 import { getStoredUser, getStoredToken } from "@/services/authService";
-import { getResumeStatus, type ResumeStatus } from "@/services/resumeService";
-import { Sparkles, FileCheck, Upload } from "lucide-react";
+import { getResumeStatus, type ResumeStatus, getSkillProfile, type SkillProfile } from "@/services/resumeService";
+import { StatusBadge, ResumeSkillTags } from "@/components/assessment/shared";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -121,6 +121,19 @@ export default function DashboardPage() {
     try {
       return new Date(iso).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" });
     } catch { return "—"; }
+  }
+
+  /** Derive a meaningful assessment type label from which section scores are populated */
+  function getAssessmentTypeLabel(r: typeof results[number]): string {
+    const hasApt  = (r.aptitudeScore  ?? 0) > 0 || (r as any).aptitudeAnswers?.length  > 0;
+    const hasTech = (r.technicalScore ?? 0) > 0 || (r as any).technicalAnswers?.length > 0;
+    const hasCode = (r.codingScore    ?? 0) > 0 || (r as any).codingSubmissions?.length > 0;
+    const count   = [hasApt, hasTech, hasCode].filter(Boolean).length;
+    if (count >= 2) return "Full Assessment";
+    if (hasApt)    return "Aptitude Assessment";
+    if (hasTech)   return "Technical Assessment";
+    if (hasCode)   return "Coding Assessment";
+    return "Assessment";
   }
 
   function statusBadge(status: string) {
@@ -348,11 +361,12 @@ export default function DashboardPage() {
             ) : (
               <div className="divide-y divide-[rgba(30,41,59,0.05)]">
                 {results.map((r) => {
+                  const typeLabel = getAssessmentTypeLabel(r);
                   return (
                     <div key={r.id} className="flex items-center justify-between px-5 py-3.5 hover:bg-[#F8FAFC] transition-colors group card-accent-blue">
                       <div className="flex-1 min-w-0">
                         <p className="text-[13px] font-semibold text-[#1E293B] truncate">
-                          Assessment Result
+                          {typeLabel}
                         </p>
                         <p className="text-[11px] text-[#94A3B8] mt-0.5 flex items-center gap-1.5">
                           <Clock size={10} />

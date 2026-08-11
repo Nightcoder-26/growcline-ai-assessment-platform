@@ -60,6 +60,15 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
     setMounted(true);
   }, []);
 
+  // Close sidebar on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && sidebarOpen) setSidebarOpen(false);
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [sidebarOpen]);
+
   function isActive(item: NavItem) {
     if (item.exact) return pathname === item.href;
     return pathname.startsWith(item.href);
@@ -124,6 +133,7 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
           <button
             className="lg:hidden text-white/50 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"
             onClick={() => setSidebarOpen(false)}
+            aria-label="Close navigation menu"
           >
             <X size={17} />
           </button>
@@ -146,6 +156,8 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
                 key={item.href}
                 href={item.href}
                 onClick={() => setSidebarOpen(false)}
+                aria-label={item.label}
+                aria-current={active ? "page" : undefined}
                 className={`
                   flex items-center gap-3 px-3 py-2.5 rounded-xl text-[13px] font-medium
                   transition-all duration-150 group relative
@@ -225,6 +237,7 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
           <button
             className="lg:hidden text-[#64748B] hover:text-[#1E293B] transition-colors p-1.5 rounded-lg hover:bg-[#F1F5F9]"
             onClick={() => setSidebarOpen(true)}
+            aria-label="Open navigation menu"
           >
             <Menu size={19} />
           </button>
