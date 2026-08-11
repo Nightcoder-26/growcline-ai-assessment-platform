@@ -61,7 +61,7 @@ app = FastAPI(
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=Config.ALLOWED_ORIGINS if Config.ALLOWED_ORIGINS else ["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -111,9 +111,11 @@ app.mount("/uploads", StaticFiles(directory=_upload_dir), name="uploads")
 # ────────────────────────────────────────────────────────────────────────────
 
 
-@app.get("/", summary="Health check endpoint")
+@app.get("/", summary="Health check root endpoint")
+@app.get("/health", summary="Health check endpoint")
 async def home():
     return {
+        "status": "ok",
         "success": True,
         "message": "GrowCline Backend is Running 🚀"
     }

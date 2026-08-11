@@ -17,6 +17,11 @@ class Config:
     HOST: str = os.getenv("HOST", "0.0.0.0")
     PORT: int = int(os.getenv("PORT", 5001))
     DEBUG: bool = os.getenv("DEBUG", "True").lower() == "true"
+    ALLOWED_ORIGINS: list = [
+        origin.strip()
+        for origin in os.getenv("ALLOWED_ORIGINS", "*").split(",")
+        if origin.strip()
+    ]
 
     # MongoDB Configuration
     MONGO_URI: str = os.getenv("MONGO_URI", "mongodb://localhost:27017/growcline_assessment")
