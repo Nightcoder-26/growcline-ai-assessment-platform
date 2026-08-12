@@ -112,11 +112,17 @@ class Database:
 
     @classmethod
     def init_indexes(cls):
-        """Create indexes required by Team B interview and proctoring modules."""
+        """Create indexes required by Team A & B modules for high-performance lookup."""
         if cls.db is None:
             return
 
         try:
+            cls.db.users.create_index(
+                [("email", ASCENDING)],
+                unique=True,
+                name="idx_users_email",
+            )
+
             cls.db.interviews.create_index(
                 [
                     ("userId", ASCENDING),

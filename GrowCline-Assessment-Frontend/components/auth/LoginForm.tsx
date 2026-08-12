@@ -156,17 +156,8 @@ export default function LoginForm() {
     setLoading(true);
     try {
       await login({ email: email.trim(), password });
-      setSuccessMsg("Login successful! Checking resume...");
-      try {
-        const status = await getResumeStatus();
-        if (status.hasResume) {
-          router.push("/dashboard");
-        } else {
-          router.push("/resume-onboarding");
-        }
-      } catch {
-        router.push("/dashboard");
-      }
+      setSuccessMsg("Login successful! Redirecting...");
+      router.push("/dashboard");
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : "Invalid credentials. Please try again.";
