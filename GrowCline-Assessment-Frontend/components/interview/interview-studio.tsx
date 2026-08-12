@@ -304,7 +304,6 @@ export function InterviewStudio() {
       if (document.documentElement.requestFullscreen) {
         await document.documentElement.requestFullscreen();
         setFullscreenRequested(true);
-        console.log("[STUDIO] fullscreen entered");
       }
     } catch (err) {
       // Fullscreen failed — still allow recording but show warning
@@ -323,8 +322,6 @@ export function InterviewStudio() {
 
     // 3. Activate proctoring (enables logEvent to fire violations)
     activateProctoring();
-
-    console.log("[STUDIO] recording started, proctoring activated");
   }, [clearBlobUrl, startMediaRecorder, activateProctoring]);
 
   // ── Stop Recording ────────────────────────────────────────────────────────
@@ -334,7 +331,6 @@ export function InterviewStudio() {
     deactivateProctoring();
     setRecording(false);
     stopMediaRecorder();
-    console.log("[STUDIO] recording stopped, proctoring deactivated");
   }, [stopMediaRecorder, deactivateProctoring]);
 
   // ── Retake ────────────────────────────────────────────────────────────────

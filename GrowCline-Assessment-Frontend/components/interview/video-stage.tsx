@@ -196,7 +196,6 @@ export function VideoStage({
               now - missingSinceRef.current >= FACE_MISSING_CONFIRM_MS
             ) {
               faceStateRef.current = "ACTIVE_MISSING";
-              console.log("[DETECTOR] FACE_MISSING confirmed after", FACE_MISSING_CONFIRM_MS, "ms");
               // Always fire the callback — logEvent() in useProctoring is the authoritative gate
               onFacePresenceChange?.(false);
             }
@@ -209,7 +208,6 @@ export function VideoStage({
             missingSinceRef.current = null;
             setInternalFaceDetected(true);
             onFacePresenceChange?.(true);
-            console.log("[PROCTOR] face returned, resetting face-missing state");
           }
         }
 
@@ -260,7 +258,6 @@ export function VideoStage({
               now - multipleSinceRef.current >= MULTIPLE_FACE_CONFIRM_MS
             ) {
               multiStateRef.current = "ACTIVE_MULTIPLE";
-              console.log("[DETECTOR] MULTIPLE_FACES confirmed after", MULTIPLE_FACE_CONFIRM_MS, "ms");
               // Always fire — logEvent() in useProctoring gates the actual backend call
               onMultipleFacesDetected?.();
             }
@@ -270,7 +267,6 @@ export function VideoStage({
           if (multiStateRef.current !== "NORMAL") {
             multiStateRef.current    = "NORMAL";
             multipleSinceRef.current = null;
-            console.log("[PROCTOR] multiple-face condition cleared");
           }
         }
       };

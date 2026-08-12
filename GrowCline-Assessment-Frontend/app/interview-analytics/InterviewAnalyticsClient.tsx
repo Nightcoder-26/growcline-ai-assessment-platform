@@ -210,14 +210,15 @@ export default function InterviewAnalyticsClient() {
     session.fullscreenExits,
   ]);
 
-  // Initial fetch + polling (only when interviewId is present)
+  // Initial fetch + conditional polling (stops once data is successfully loaded)
   useEffect(() => {
     if (!interviewId) return;
     fetchAnalytics(true);
-    const interval = setInterval(() => fetchAnalytics(true), 8000);
+    if (data) return;
+    const interval = setInterval(() => fetchAnalytics(true), 15000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [interviewId]);
+  }, [interviewId, !!data]);
 
   // ── Guard: No interview ID ────────────────────────────────────────────────
   if (!interviewId) {

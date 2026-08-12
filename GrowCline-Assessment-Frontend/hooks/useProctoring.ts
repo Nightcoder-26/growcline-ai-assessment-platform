@@ -229,8 +229,6 @@ export function useProctoring(
     const batch = [...queue.current];
     queue.current = [];
 
-    console.log(`[PROCTOR] flushing ${batch.length} event(s) to backend:`, batch.map(e => e.event_type));
-
     try {
       await apiClient.post("/api/proctoring/events/batch", {
         interview_id: interviewId,
@@ -320,7 +318,6 @@ export function useProctoring(
             ) {
               lastNoiseFiredAt.current = now;
               noiseFrameCount.current = 0;
-              console.log("[PROCTOR] background speech / noise detected → BACKGROUND_VOICE");
               logEvent("BACKGROUND_VOICE");
             }
           } else {
@@ -356,7 +353,6 @@ export function useProctoring(
 
   const activateProctoring = useCallback(() => {
     if (proctoringActive.current) return;
-    console.log("[PROCTOR] session activated");
     proctoringActive.current = true;
 
     queue.current.push({
@@ -372,7 +368,6 @@ export function useProctoring(
 
   const deactivateProctoring = useCallback(() => {
     if (!proctoringActive.current) return;
-    console.log("[PROCTOR] session deactivated");
     proctoringActive.current = false;
 
     stopNoiseDetection();
@@ -416,7 +411,6 @@ export function useProctoring(
       if (now - lastTabSwitchAt.current >= TAB_SWITCH_COOLDOWN_MS) {
         lastTabSwitchAt.current = now;
         isTabVisibleRef.current = false;
-        console.log(`[PROCTOR] ${source} → TAB_SWITCH`);
         logEvent("TAB_SWITCH");
       }
     };
@@ -441,12 +435,10 @@ export function useProctoring(
       if (isFS) {
         // Reset exit timestamp when entering fullscreen so next exit is logged immediately
         lastFullscreenExitAt.current = 0;
-        console.log("[PROCTOR] fullscreen entered / active");
       } else if (proctoringActive.current) {
         const now = Date.now();
         if (now - lastFullscreenExitAt.current >= FULLSCREEN_EXIT_COOLDOWN_MS) {
           lastFullscreenExitAt.current = now;
-          console.log("[PROCTOR] fullscreen exited → FULLSCREEN_EXIT");
           logEvent("FULLSCREEN_EXIT");
         }
       }
