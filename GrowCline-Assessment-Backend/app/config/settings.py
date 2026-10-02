@@ -33,6 +33,16 @@ class Config:
     # Groq AI Configuration
     GROQ_API_KEY: str = os.getenv("GROQ_API_KEY", "")
 
+    # ── Judge0 Code Execution Engine ──────────────────────────────────────────
+    # Self-hosted: set JUDGE0_URL=http://localhost:2358
+    # RapidAPI-hosted: set JUDGE0_URL + JUDGE0_RAPIDAPI_HOST + JUDGE0_API_KEY
+    JUDGE0_URL: str = os.getenv("JUDGE0_URL", "")
+    JUDGE0_API_KEY: str = os.getenv("JUDGE0_API_KEY", "")
+    JUDGE0_RAPIDAPI_HOST: str = os.getenv("JUDGE0_RAPIDAPI_HOST", "")
+    # Set to "true" ONLY in local dev to allow Python subprocess fallback execution.
+    # NEVER enable in production — runs untrusted code on the API server.
+    ALLOW_LOCAL_EXECUTION: bool = os.getenv("ALLOW_LOCAL_EXECUTION", "false").lower() == "true"
+
     # Google Drive Configuration (Video Recording Module)
     # Path to the Service Account JSON key file — must be excluded from Git.
     GOOGLE_APPLICATION_CREDENTIALS: str = (

@@ -9,6 +9,7 @@
     "lint": "eslint ."
   },
   "dependencies": {
+    "@monaco-editor/react": "^4.7.0",
     "@vercel/analytics": "1.6.1",
     "axios": "^1.18.1",
     "class-variance-authority": "^0.7.1",
@@ -19,6 +20,7 @@
     "react": "^19",
     "react-circular-progressbar": "^2.2.0",
     "react-dom": "^19",
+    "react-is": "^19.3.0",
     "react-media-recorder": "^1.7.2",
     "react-webcam": "^7.2.0",
     "recharts": "^3.9.2",

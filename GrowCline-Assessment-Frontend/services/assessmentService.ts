@@ -97,10 +97,57 @@ export interface AnswerRecord {
 export interface CodingSubmission {
   questionId: string;
   code: string;
-  language?: string;
+  language: string;
   score?: number;
   testsPassed?: number;
   testsTotal?: number;
+}
+
+// ── Judge / Run types ────────────────────────────────────────────────────────
+
+export interface RunCaseResult {
+  test_case_id: string;
+  is_hidden: boolean;
+  passed: boolean;
+  status: string;
+  execution_time_ms: number;
+  memory_kb: number;
+  error_message: string;
+  input: string;
+  expected_output: string;
+  actual_output: string;
+}
+
+export interface RunResult {
+  success: boolean;
+  overall_status: string;
+  passed: number;
+  total: number;
+  results: RunCaseResult[];
+  message?: string;
+}
+
+export interface SubmitOneResult {
+  success: boolean;
+  question_id: string;
+  status: string;
+  marks_obtained: number;
+  max_marks: number;
+  passed_tests: number;
+  total_tests: number;
+  percentage: number;
+  sample_results: RunCaseResult[];
+  sample_passed: number;
+  sample_total: number;
+  hidden_summary: { passed: number; total: number };
+}
+
+export interface SubmitAllResult {
+  success: boolean;
+  score: number;
+  total: number;
+  percentage: number;
+  results: SubmitOneResult[];
 }
 
 export interface CandidateAnalytics {
@@ -203,10 +250,40 @@ export async function generateCodingQuestions(
   return Array.isArray(data) ? data : (data.questions ?? data.data ?? []);
 }
 
+export async function runCode(
+  questionId: string,
+  code: string,
+  language: string
+): Promise<RunResult> {
+  const { data } = await apiClient.post("/api/coding/run", {
+    questionId,
+    code,
+    language,
+  });
+  return data;
+}
+
+export async function submitOneProblem(
+  questionId: string,
+  code: string,
+  language: string
+): Promise<SubmitOneResult> {
+  const { data } = await apiClient.post("/api/coding/submit-one", {
+    questionId,
+    code,
+    language,
+  });
+  return data;
+}
+
 export async function submitCodingAnswers(
-  answers: CodingSubmission[]
-): Promise<{ score: number; total: number; percentage: number; results?: unknown[] }> {
-  const { data } = await apiClient.post("/api/coding/submit", { answers });
+  answers: CodingSubmission[],
+  assessmentId?: string
+): Promise<SubmitAllResult> {
+  const { data } = await apiClient.post("/api/coding/submit", {
+    answers,
+    assessmentId,
+  });
   return data;
 }
 

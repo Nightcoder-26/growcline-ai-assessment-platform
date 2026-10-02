@@ -657,7 +657,8 @@ Candidate profile:
 - Domains: {domains}
 
 Problem requirements:
-- Create algorithmic problems solvable in any programming language
+- Create stdin/stdout algorithmic problems solvable in Python (and any language)
+- All input is read from stdin; output is printed to stdout
 - Prefer problems relevant to the candidate's domain but algorithmically sound
 - Include real problem statement, input/output format, constraints, sample test cases
 - Difficulty: Easy 4, Medium 8, Hard 3
@@ -669,13 +670,25 @@ Return ONLY a JSON array of exactly {count} objects:
 [
   {{
     "title": "<problem title>",
-    "problemStatement": "<full problem description>",
-    "inputFormat": "<input format description>",
-    "outputFormat": "<output format description>",
+    "problemStatement": "<full problem description. Input is read from stdin.>",
+    "inputFormat": "<describe stdin format>",
+    "outputFormat": "<describe stdout format>",
     "constraints": "<constraints like 1 <= n <= 10^5>",
     "sampleTestCases": [
-      {{"input": "<example input>", "output": "<expected output>", "explanation": "<brief explanation>"}}
+      {{"input": "<example stdin>", "output": "<expected stdout>", "explanation": "<brief explanation>"}}
     ],
+    "extraInputs": [
+      "<edge case stdin 1>",
+      "<edge case stdin 2>",
+      "<minimum constraint case>",
+      "<maximum constraint case>",
+      "<duplicate elements case>",
+      "<negative numbers case if applicable>",
+      "<empty/single element case>",
+      "<large random input>"
+    ],
+    "referenceSolution": "<Complete Python3 solution that reads from stdin and prints to stdout. Must be correct, handle all edge cases, and finish within 2 seconds.>",
+    "checker": "<exact|unordered_lines|unordered_tokens — use unordered_lines for problems where output order doesn't matter across lines, unordered_tokens for problems where token order within a line doesn't matter>",
     "difficulty": "<Easy|Medium|Hard>",
     "category": "<DSA topic e.g. Arrays, Trees, DP>",
     "programmingLanguage": "{primary_language}",
@@ -841,13 +854,123 @@ def _save_technical_questions(questions: List[Dict], user_id: str) -> List[Objec
     return ids
 
 
+def _build_verified_test_cases(problem: Dict[str, Any], max_retries: int = 2) -> Dict[str, Any]:
+    """
+    Run the reference solution through Judge0 on each sample + extra input,
+    using the reference solution's stdout as the authoritative expected output.
+
+    Validates that:
+      1. Reference solution compiles and runs without error.
+      2. Reference solution reproduces the declared sample outputs exactly.
+      3. All extra inputs produce some output (non-empty).
+
+    Returns a dict with verified `sampleTestCases` and `hiddenTestCases`,
+    or raises ValueError on persistent failure so the caller can fall back.
+    """
+    try:
+        from services.coding_service import Judge0ExecutionEngine, STATUS_SUCCESS, _compare_outputs
+    except ImportError:
+        from app.services.coding_service import Judge0ExecutionEngine, STATUS_SUCCESS, _compare_outputs
+
+    try:
+        from config.settings import Config as _Cfg
+    except ImportError:
+        from app.config.settings import Config as _Cfg
+
+    if not _Cfg.JUDGE0_URL:
+        # Judge0 not configured — return only sample cases, no hidden tests
+        return {
+            "sampleTestCases": problem.get("sampleTestCases", []),
+            "hiddenTestCases": [],
+        }
+
+    engine       = Judge0ExecutionEngine()
+    ref_solution = problem.get("referenceSolution", "")
+    checker      = problem.get("checker", "exact")
+    time_limit   = 3.0   # generous for reference solution
+    memory_limit = 256
+
+    if not ref_solution:
+        return {
+            "sampleTestCases": problem.get("sampleTestCases", []),
+            "hiddenTestCases": [],
+        }
+
+    # ── 1. Validate reference solution against declared sample outputs ────────
+    sample_tcs      = problem.get("sampleTestCases", [])
+    verified_samples = []
+    for tc in sample_tcs:
+        res = engine.execute(ref_solution, "python", tc.get("input", ""), time_limit, memory_limit)
+        if res["status"] != STATUS_SUCCESS:
+            raise ValueError(
+                f"Reference solution failed on sample input: {res['status']} — {res['error'][:200]}"
+            )
+        actual = res["output"]
+        declared = tc.get("output", "")
+        if declared and not _compare_outputs(actual, declared, checker):
+            raise ValueError(
+                f"Reference solution does not reproduce sample output.\n"
+                f"Input: {tc.get('input','')[:100]}\n"
+                f"Expected: {declared[:100]}\n"
+                f"Got: {actual[:100]}"
+            )
+        # Use reference solution's output as the authoritative expected output
+        verified_samples.append({"input": tc.get("input", ""), "output": actual})
+
+    # ── 2. Generate hidden test cases from extra inputs ───────────────────────
+    extra_inputs = problem.get("extraInputs", [])
+    if isinstance(extra_inputs, str):
+        extra_inputs = [extra_inputs]
+
+    hidden_tcs = []
+    for extra_input in extra_inputs:
+        if not extra_input:
+            continue
+        res = engine.execute(ref_solution, "python", str(extra_input), time_limit, memory_limit)
+        if res["status"] != STATUS_SUCCESS:
+            logger.warning(f"Reference solution failed on extra input (skipping): {res['status']}")
+            continue
+        if not res["output"]:
+            logger.warning("Reference solution produced empty output for extra input — skipping.")
+            continue
+        hidden_tcs.append({"input": str(extra_input), "output": res["output"]})
+
+    return {
+        "sampleTestCases": verified_samples,
+        "hiddenTestCases": hidden_tcs,
+    }
+
+
 def _save_coding_questions(questions: List[Dict], user_id: str) -> List[ObjectId]:
-    db = Database.get_db()
+    """
+    Persist coding questions to MongoDB.
+    If JUDGE0_URL is set, run test-case verification pipeline.
+    Falls back to storing only sample cases if verification fails.
+    """
+    db  = Database.get_db()
     ids = []
+
     for q in questions:
-        sample_tcs = q.get("sampleTestCases", [])
-        if not isinstance(sample_tcs, list):
-            sample_tcs = []
+        # Attempt verification pipeline (max 2 retries per problem)
+        verified = {"sampleTestCases": q.get("sampleTestCases", []), "hiddenTestCases": []}
+        for attempt in range(3):
+            try:
+                verified = _build_verified_test_cases(q)
+                break
+            except ValueError as ve:
+                logger.warning(
+                    f"Verification attempt {attempt+1} failed for '{q.get('title','')}': {ve}"
+                )
+                if attempt == 2:
+                    logger.warning(
+                        f"All retries exhausted for '{q.get('title','')}'; using unverified sample cases."
+                    )
+
+        # Build sample input/output from first verified sample case
+        sample_tcs = verified["sampleTestCases"]
+        sample_input  = sample_tcs[0]["input"]  if sample_tcs else q.get("sampleInput", "")
+        sample_output = sample_tcs[0]["output"] if sample_tcs else q.get("sampleOutput", "")
+
         doc = CodingQuestion.create_question(
             title=q["title"],
             problem_statement=q["problemStatement"],
@@ -856,16 +979,21 @@ def _save_coding_questions(questions: List[Dict], user_id: str) -> List[ObjectId
             input_format=q.get("inputFormat", ""),
             output_format=q.get("outputFormat", ""),
             constraints=q.get("constraints", ""),
+            sample_input=sample_input,
+            sample_output=sample_output,
             sample_test_cases=sample_tcs,
-            hidden_test_cases=[],
+            hidden_test_cases=verified["hiddenTestCases"],
             marks=10,
             category=q.get("category", "Algorithms"),
             tags=q.get("tags", []),
             created_by=user_id,
+            checker=q.get("checker", "exact"),
+            # referenceSolution stored server-side only (not in response())
+            reference_solution=q.get("referenceSolution", ""),
         )
-        doc["isPersonalized"] = True
+        doc["isPersonalized"]  = True
         doc["generatedForUser"] = user_id
-        doc["leetcodeStyle"] = q.get("leetcodeStyle", False)
+        doc["leetcodeStyle"]   = q.get("leetcodeStyle", False)
         result = db.coding_questions.insert_one(doc)
         ids.append(result.inserted_id)
     return ids

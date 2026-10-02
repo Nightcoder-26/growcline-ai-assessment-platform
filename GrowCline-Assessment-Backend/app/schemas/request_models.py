@@ -248,11 +248,43 @@ class CodingGenerateRequest(BaseModel):
     }}
 
 
-class CodingSubmitRequest(BaseModel):
-    answers: List[Dict[str, Any]] = []
+class CodingRunRequest(BaseModel):
+    questionId: str
+    code: str
+    language: str = "python"
 
     model_config = {"json_schema_extra": {
-        "example": {"answers": [{"questionId": "abc123", "code": "def solution(): pass"}]}
+        "example": {
+            "questionId": "abc123",
+            "code": "import sys\nfor line in sys.stdin:\n    print(line.strip())",
+            "language": "python"
+        }
+    }}
+
+
+class CodingSubmitOneRequest(BaseModel):
+    questionId: str
+    code: str
+    language: str = "python"
+
+    model_config = {"json_schema_extra": {
+        "example": {"questionId": "abc123", "code": "...", "language": "python"}
+    }}
+
+
+class CodingSubmitRequest(BaseModel):
+    answers: List[Dict[str, Any]] = []
+    assessmentId: Optional[str] = None
+
+    model_config = {"json_schema_extra": {
+        "example": {
+            "assessmentId": "assess123",
+            "answers": [{
+                "questionId": "abc123",
+                "code": "import sys\nnums = list(map(int, sys.stdin.read().split()))\nprint(nums[0]+nums[1])",
+                "language": "python"
+            }]
+        }
     }}
 
 
