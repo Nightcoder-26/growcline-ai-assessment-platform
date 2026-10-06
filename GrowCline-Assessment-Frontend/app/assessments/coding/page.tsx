@@ -746,7 +746,8 @@ export default function CodingPage() {
                 <span className="text-[11.5px] font-bold text-[#64748B] uppercase tracking-wide">Test Output</span>
                 {runState === "running" && <Loader2 size={12} className="animate-spin text-[#4096ff] ml-auto" />}
                 {runState === "done" && runResult?.overall_status === "Accepted" && <CheckCircle2 size={12} className="text-[#15803D] ml-auto" />}
-                {runState === "done" && runResult && runResult.overall_status !== "Accepted" && <XCircle size={12} className="text-[#DC2626] ml-auto" />}
+                {runState === "done" && runResult?.overall_status === "Judge Unavailable" && <AlertCircle size={12} className="text-[#B45309] ml-auto" />}
+                {runState === "done" && runResult && runResult.overall_status !== "Accepted" && runResult.overall_status !== "Judge Unavailable" && <XCircle size={12} className="text-[#DC2626] ml-auto" />}
                 {runError && <AlertCircle size={12} className="text-[#DC2626] ml-auto" />}
               </div>
 
@@ -766,37 +767,58 @@ export default function CodingPage() {
 
                 {runResult && (
                   <div className="space-y-2">
-                    {/* Overall verdict */}
-                    <div className={`text-[12px] font-bold px-2.5 py-1.5 rounded-lg border ${verdictColor(runResult.overall_status)}`}>
-                      {runResult.overall_status} — {runResult.passed}/{runResult.total} sample tests passed
-                    </div>
-
-                    {/* Per-case results */}
-                    {runResult.results?.map((tc, i) => (
-                      <div key={i} className={`rounded-lg border p-2.5 text-[12px] ${tc.passed ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
-                        <div className="flex items-center justify-between mb-1.5">
-                          <span className="font-bold">Case {i + 1}: {tc.status}</span>
-                          <span className="text-[11px] text-[#64748B]">{tc.execution_time_ms.toFixed(1)}ms</span>
+                    {/* Judge Unavailable — service outage, not a test failure */}
+                    {runResult.overall_status === "Judge Unavailable" ? (
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 flex gap-2.5">
+                        <AlertCircle size={16} className="text-amber-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-[12px] font-bold text-amber-800">Code Execution Service Unavailable</p>
+                          <p className="text-[12px] text-amber-700 mt-0.5">
+                            The judge service is temporarily unavailable. This is <strong>not</strong> a result of your code.
+                            Your submission was <strong>not scored</strong>. Please try again in a moment.
+                          </p>
+                          {runResult.results?.[0]?.error_message && (
+                            <p className="text-[11px] text-amber-600 mt-1 font-mono">{runResult.results[0].error_message}</p>
+                          )}
                         </div>
-                        <div className="grid grid-cols-3 gap-1.5">
-                          <div>
-                            <p className="text-[10px] text-[#64748B] font-bold mb-0.5">Input</p>
-                            <pre className="font-mono text-[11px] bg-white rounded px-1.5 py-1 whitespace-pre-wrap overflow-x-auto max-h-16">{tc.input}</pre>
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-[#64748B] font-bold mb-0.5">Expected</p>
-                            <pre className="font-mono text-[11px] bg-white rounded px-1.5 py-1 whitespace-pre-wrap overflow-x-auto max-h-16">{tc.expected_output}</pre>
-                          </div>
-                          <div>
-                            <p className="text-[10px] text-[#64748B] font-bold mb-0.5">Your Output</p>
-                            <pre className={`font-mono text-[11px] rounded px-1.5 py-1 whitespace-pre-wrap overflow-x-auto max-h-16 ${tc.passed ? "bg-green-100" : "bg-red-100"}`}>{tc.actual_output || "(empty)"}</pre>
-                          </div>
-                        </div>
-                        {tc.error_message && (
-                          <pre className="mt-1.5 font-mono text-[11px] text-red-700 bg-red-100 rounded px-1.5 py-1 whitespace-pre-wrap overflow-x-auto max-h-24">{tc.error_message}</pre>
-                        )}
                       </div>
-                    ))}
+                    ) : (
+                      <>
+                        {/* Overall verdict */}
+                        <div className={`text-[12px] font-bold px-2.5 py-1.5 rounded-lg border ${verdictColor(runResult.overall_status)}`}>
+                          {runResult.overall_status} — {runResult.passed}/{runResult.total} sample tests passed
+                        </div>
+
+                        {/* Per-case results */}
+                        {runResult.results?.map((tc, i) => (
+                          <div key={i} className={`rounded-lg border p-2.5 text-[12px] ${tc.status === "Judge Unavailable" ? "bg-amber-50 border-amber-200" : tc.passed ? "bg-green-50 border-green-200" : "bg-red-50 border-red-200"}`}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <span className="font-bold">Case {i + 1}: {tc.status}</span>
+                              <span className="text-[11px] text-[#64748B]">{tc.execution_time_ms.toFixed(1)}ms</span>
+                            </div>
+                            {tc.status !== "Judge Unavailable" && (
+                              <div className="grid grid-cols-3 gap-1.5">
+                                <div>
+                                  <p className="text-[10px] text-[#64748B] font-bold mb-0.5">Input</p>
+                                  <pre className="font-mono text-[11px] bg-white rounded px-1.5 py-1 whitespace-pre-wrap overflow-x-auto max-h-16">{tc.input}</pre>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-[#64748B] font-bold mb-0.5">Expected</p>
+                                  <pre className="font-mono text-[11px] bg-white rounded px-1.5 py-1 whitespace-pre-wrap overflow-x-auto max-h-16">{tc.expected_output}</pre>
+                                </div>
+                                <div>
+                                  <p className="text-[10px] text-[#64748B] font-bold mb-0.5">Your Output</p>
+                                  <pre className={`font-mono text-[11px] rounded px-1.5 py-1 whitespace-pre-wrap overflow-x-auto max-h-16 ${tc.passed ? "bg-green-100" : "bg-red-100"}`}>{tc.actual_output || "(empty)"}</pre>
+                                </div>
+                              </div>
+                            )}
+                            {tc.error_message && (
+                              <pre className="mt-1.5 font-mono text-[11px] text-red-700 bg-red-100 rounded px-1.5 py-1 whitespace-pre-wrap overflow-x-auto max-h-24">{tc.error_message}</pre>
+                            )}
+                          </div>
+                        ))}
+                      </>
+                    )}
                   </div>
                 )}
               </div>
