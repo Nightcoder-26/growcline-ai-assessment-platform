@@ -102,10 +102,10 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
 
       <aside
         className={`
-          fixed top-0 left-0 h-full w-64 z-40 flex flex-col
+          fixed top-0 left-0 h-screen w-64 z-40 flex flex-col
           transform transition-transform duration-300 ease-in-out
           ${sidebarOpen ? "translate-x-0" : "-translate-x-full"}
-          lg:translate-x-0 lg:static lg:z-auto
+          lg:translate-x-0 lg:sticky lg:top-0 lg:h-screen lg:shrink-0 lg:z-30
         `}
         style={{
           background: "linear-gradient(180deg, #0F172A 0%, #1E293B 100%)",
@@ -189,7 +189,7 @@ export default function AppShell({ children, title, subtitle }: AppShellProps) {
         <SidebarGuideCarousel />
 
         {/* User profile footer */}
-        <div className="p-3 shrink-0" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+        <div className="p-3 shrink-0 mt-auto" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
           <div className="flex items-center gap-3 px-2 py-2 group">
             <button
               onClick={() => setProfileDrawerOpen(true)}

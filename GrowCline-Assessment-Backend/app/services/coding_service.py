@@ -452,15 +452,21 @@ class CodingService:
         Factory: returns the appropriate execution engine.
 
         Priority:
-          1. If JUDGE0_URL is set → Judge0ExecutionEngine (default "auto" or "judge0")
-          2. If ALLOW_LOCAL_EXECUTION=true and engine_type="local" → LocalPythonExecutionEngine
-          3. Otherwise → Judge0ExecutionEngine (will return JUDGE_UNAVAILABLE if URL not set)
+          1. If engine_type in ("local", "sandbox") → LocalPythonExecutionEngine
+          2. If JUDGE0_URL is set → Judge0ExecutionEngine (default "auto" or "judge0")
+          3. If ALLOW_LOCAL_EXECUTION=true and no JUDGE0_URL → LocalPythonExecutionEngine
+          4. Otherwise → Judge0ExecutionEngine (will return JUDGE_UNAVAILABLE if URL not set)
         """
-        if engine_type == "local" and Config.ALLOW_LOCAL_EXECUTION:
+        engine_str = (engine_type or "auto").lower().strip()
+        if engine_str in ("local", "sandbox"):
             return LocalPythonExecutionEngine()
-        if engine_type == "docker":
+        if engine_str == "docker":
             return DockerExecutionEngine()
-        # Default: Judge0 (safest; will fail gracefully if JUDGE0_URL not set)
+        if Config.JUDGE0_URL:
+            return Judge0ExecutionEngine()
+        if Config.ALLOW_LOCAL_EXECUTION:
+            return LocalPythonExecutionEngine()
+        # Default: Judge0
         return Judge0ExecutionEngine()
 
     @classmethod
